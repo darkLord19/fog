@@ -3,7 +3,9 @@ package daemon
 import (
 	"bytes"
 	"io"
+	"net"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -44,6 +46,32 @@ func TestWaitForHealthTimeout(t *testing.T) {
 	}
 	if time.Since(start) < 900*time.Millisecond {
 		t.Fatal("expected waitForHealth to wait for timeout duration")
+	}
+}
+
+func TestEnsureRunningStartsEmbeddedDaemon(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "operation not permitted") {
+			t.Skip("sandbox does not permit local tcp bind")
+		}
+		t.Fatalf("reserve local port failed: %v", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	_ = ln.Close()
+
+	baseURL, err := EnsureRunning(t.TempDir(), port, 5*time.Second)
+	if err != nil {
+		t.Fatalf("ensure running failed: %v", err)
+	}
+
+	resp, err := (&http.Client{Timeout: 2 * time.Second}).Get(baseURL + "/health")
+	if err != nil {
+		t.Fatalf("health request failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected health status: %d", resp.StatusCode)
 	}
 }
 

@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
-	"github.com/darkLord19/wtx/internal/runner"
-	"github.com/darkLord19/wtx/internal/state"
+	"github.com/darkLord19/foglet/internal/runner"
+	"github.com/darkLord19/foglet/internal/state"
 )
 
 func TestHandleCreateTaskRequiresRepo(t *testing.T) {
@@ -113,20 +112,6 @@ func TestHandleSettingsPutWithGitHubPAT(t *testing.T) {
 	}
 	if token != "ghp_testtoken123" {
 		t.Fatalf("unexpected token value: %q", token)
-	}
-}
-
-func TestHandleUIRoot(t *testing.T) {
-	srv := newTestServer(t)
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	w := httptest.NewRecorder()
-
-	srv.handleUI(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("unexpected status: got %d want %d", w.Code, http.StatusOK)
-	}
-	if !strings.Contains(w.Body.String(), "Fog Control Plane") {
-		t.Fatalf("expected ui html content in response")
 	}
 }
 

@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/darkLord19/wtx/internal/ai"
-	"github.com/darkLord19/wtx/internal/runner"
-	"github.com/darkLord19/wtx/internal/state"
-	"github.com/darkLord19/wtx/internal/task"
-	"github.com/darkLord19/wtx/internal/toolcfg"
+	"github.com/darkLord19/foglet/internal/ai"
+	"github.com/darkLord19/foglet/internal/runner"
+	"github.com/darkLord19/foglet/internal/state"
+	"github.com/darkLord19/foglet/internal/task"
+	"github.com/darkLord19/foglet/internal/toolcfg"
 	"github.com/google/uuid"
 )
 
@@ -36,7 +36,6 @@ func New(runner *runner.Runner, stateStore *state.Store, port int) *Server {
 
 // RegisterRoutes registers API routes on the provided mux
 func (s *Server) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/", s.handleUI)
 	mux.HandleFunc("/api/tasks", s.handleTasks)
 	mux.HandleFunc("/api/tasks/create", s.handleCreateTask)
 	mux.HandleFunc("/api/tasks/", s.handleTaskDetail)
@@ -194,19 +193,6 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"status": "ok",
 		"time":   time.Now().Format(time.RFC3339),
 	})
-}
-
-func (s *Server) handleUI(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(webUIHTML))
 }
 
 type SettingsResponse struct {

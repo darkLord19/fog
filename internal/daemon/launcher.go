@@ -1,18 +1,32 @@
 package daemon
 
 import (
+	"errors"
 	"fmt"
+	"log"
+	"net"
 	"net/http"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"runtime"
 	"strconv"
-	"syscall"
+	"sync"
 	"time"
+
+	"github.com/darkLord19/foglet/internal/api"
+	"github.com/darkLord19/foglet/internal/runner"
+	"github.com/darkLord19/foglet/internal/state"
 )
 
 const defaultHealthTimeout = 15 * time.Second
+
+type embeddedDaemon struct {
+	server     *http.Server
+	stateStore *state.Store
+}
+
+var (
+	embeddedMu      sync.Mutex
+	embeddedDaemons = map[int]*embeddedDaemon{}
+)
 
 // EnsureRunning checks /health and starts fogd if needed.
 func EnsureRunning(fogHome string, port int, timeout time.Duration) (string, error) {
@@ -39,29 +53,59 @@ func EnsureRunning(fogHome string, port int, timeout time.Duration) (string, err
 }
 
 func startFogd(fogHome string, port int) error {
-	logsDir := filepath.Join(fogHome, "logs")
-	if err := os.MkdirAll(logsDir, 0o755); err != nil {
-		return fmt.Errorf("create logs dir: %w", err)
+	healthURL := fmt.Sprintf("http://127.0.0.1:%d/health", port)
+
+	embeddedMu.Lock()
+	defer embeddedMu.Unlock()
+
+	if _, ok := embeddedDaemons[port]; ok {
+		return nil
+	}
+	if isHealthy(healthURL, 2*time.Second) {
+		return nil
 	}
 
-	logFile := filepath.Join(logsDir, "fogd.log")
-	f, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	cwd, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("open fogd log file: %w", err)
-	}
-	defer f.Close()
-
-	cmd := exec.Command("fogd", "--port", strconv.Itoa(port))
-	cmd.Stdout = f
-	cmd.Stderr = f
-	cmd.Env = os.Environ()
-	if runtime.GOOS != "windows" {
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		cwd = fogHome
 	}
 
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start fogd: %w", err)
+	r, err := runner.New(cwd, fogHome)
+	if err != nil {
+		return fmt.Errorf("create embedded fog runner: %w", err)
 	}
+	stateStore, err := state.NewStore(fogHome)
+	if err != nil {
+		return fmt.Errorf("open embedded fog state store: %w", err)
+	}
+
+	mux := http.NewServeMux()
+	api.New(r, stateStore, port).RegisterRoutes(mux)
+
+	server := &http.Server{
+		Addr:    ":" + strconv.Itoa(port),
+		Handler: api.WithCORS(mux),
+	}
+	ln, err := net.Listen("tcp", server.Addr)
+	if err != nil {
+		_ = stateStore.Close()
+		return fmt.Errorf("listen embedded fogd on %s: %w", server.Addr, err)
+	}
+
+	embeddedDaemons[port] = &embeddedDaemon{
+		server:     server,
+		stateStore: stateStore,
+	}
+
+	go func() {
+		if err := server.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("embedded fogd stopped with error: %v", err)
+		}
+		embeddedMu.Lock()
+		delete(embeddedDaemons, port)
+		embeddedMu.Unlock()
+		_ = stateStore.Close()
+	}()
 
 	return nil
 }
@@ -89,21 +133,4 @@ func isHealthyWithClient(client *http.Client, healthURL string) bool {
 	}
 	defer resp.Body.Close()
 	return resp.StatusCode >= 200 && resp.StatusCode < 300
-}
-
-// OpenBrowser opens URL in the system browser (macOS/Linux).
-func OpenBrowser(url string) error {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "darwin":
-		cmd = exec.Command("open", url)
-	case "linux":
-		cmd = exec.Command("xdg-open", url)
-	default:
-		return fmt.Errorf("unsupported platform for auto-open: %s", runtime.GOOS)
-	}
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("open browser: %w", err)
-	}
-	return nil
 }
