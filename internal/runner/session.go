@@ -32,8 +32,61 @@ type StartSessionOptions struct {
 
 // StartSession creates a new session (branch/worktree) and executes the initial prompt.
 func (r *Runner) StartSession(opts StartSessionOptions) (state.Session, state.Run, error) {
+	session, run, execOpts, err := r.prepareSession(opts)
+	if err != nil {
+		return state.Session{}, state.Run{}, err
+	}
+	err = r.executeSessionRun(session, run, execOpts)
+	return r.loadSessionAndRun(session.ID, run.ID, err)
+}
+
+// StartSessionAsync creates a new session and starts the initial run in the background.
+func (r *Runner) StartSessionAsync(opts StartSessionOptions) (state.Session, state.Run, error) {
+	session, run, execOpts, err := r.prepareSession(opts)
+	if err != nil {
+		return state.Session{}, state.Run{}, err
+	}
+	go func(s state.Session, ru state.Run, eo sessionRunOptions) {
+		_ = r.executeSessionRun(s, ru, eo)
+	}(session, run, execOpts)
+	return session, run, nil
+}
+
+// ContinueSession appends one follow-up run to an existing session.
+func (r *Runner) ContinueSession(sessionID, prompt string) (state.Run, error) {
+	session, run, execOpts, err := r.prepareFollowUpRun(sessionID, prompt)
+	if err != nil {
+		return state.Run{}, err
+	}
+	err = r.executeSessionRun(session, run, execOpts)
+	updatedRun, found, runErr := r.state.GetRun(run.ID)
+	if runErr != nil {
+		return state.Run{}, runErr
+	}
+	if !found {
+		return state.Run{}, fmt.Errorf("run %q disappeared", run.ID)
+	}
+	if err != nil {
+		return updatedRun, err
+	}
+	return updatedRun, nil
+}
+
+// ContinueSessionAsync appends one follow-up run and executes it in the background.
+func (r *Runner) ContinueSessionAsync(sessionID, prompt string) (state.Run, error) {
+	session, run, execOpts, err := r.prepareFollowUpRun(sessionID, prompt)
+	if err != nil {
+		return state.Run{}, err
+	}
+	go func(s state.Session, ru state.Run, eo sessionRunOptions) {
+		_ = r.executeSessionRun(s, ru, eo)
+	}(session, run, execOpts)
+	return run, nil
+}
+
+func (r *Runner) prepareSession(opts StartSessionOptions) (state.Session, state.Run, sessionRunOptions, error) {
 	if r.state == nil {
-		return state.Session{}, state.Run{}, errors.New("state store not configured")
+		return state.Session{}, state.Run{}, sessionRunOptions{}, errors.New("state store not configured")
 	}
 
 	opts.RepoName = strings.TrimSpace(opts.RepoName)
@@ -49,20 +102,20 @@ func (r *Runner) StartSession(opts StartSessionOptions) (state.Session, state.Ru
 
 	switch {
 	case opts.RepoName == "":
-		return state.Session{}, state.Run{}, errors.New("repo name is required")
+		return state.Session{}, state.Run{}, sessionRunOptions{}, errors.New("repo name is required")
 	case opts.RepoPath == "":
-		return state.Session{}, state.Run{}, errors.New("repo path is required")
+		return state.Session{}, state.Run{}, sessionRunOptions{}, errors.New("repo path is required")
 	case opts.Branch == "":
-		return state.Session{}, state.Run{}, errors.New("branch is required")
+		return state.Session{}, state.Run{}, sessionRunOptions{}, errors.New("branch is required")
 	case opts.Tool == "":
-		return state.Session{}, state.Run{}, errors.New("tool is required")
+		return state.Session{}, state.Run{}, sessionRunOptions{}, errors.New("tool is required")
 	case opts.Prompt == "":
-		return state.Session{}, state.Run{}, errors.New("prompt is required")
+		return state.Session{}, state.Run{}, sessionRunOptions{}, errors.New("prompt is required")
 	}
 
 	worktreePath, err := r.createWorktreePath(opts.RepoPath, opts.Branch)
 	if err != nil {
-		return state.Session{}, state.Run{}, err
+		return state.Session{}, state.Run{}, sessionRunOptions{}, err
 	}
 
 	now := time.Now().UTC()
@@ -80,7 +133,7 @@ func (r *Runner) StartSession(opts StartSessionOptions) (state.Session, state.Ru
 		UpdatedAt:    now,
 	}
 	if err := r.state.CreateSession(session); err != nil {
-		return state.Session{}, state.Run{}, err
+		return state.Session{}, state.Run{}, sessionRunOptions{}, err
 	}
 
 	run := state.Run{
@@ -92,67 +145,45 @@ func (r *Runner) StartSession(opts StartSessionOptions) (state.Session, state.Ru
 		UpdatedAt: now,
 	}
 	if err := r.state.CreateRun(run); err != nil {
-		return state.Session{}, state.Run{}, err
+		_ = r.state.SetSessionBusy(session.ID, false)
+		return state.Session{}, state.Run{}, sessionRunOptions{}, err
 	}
 
-	execOpts := sessionRunOptions{
+	return session, run, sessionRunOptions{
 		Prompt:      opts.Prompt,
 		SetupCmd:    opts.SetupCmd,
 		Validate:    opts.Validate,
 		ValidateCmd: opts.ValidateCmd,
 		BaseBranch:  opts.BaseBranch,
 		CommitMsg:   opts.CommitMsg,
-	}
-	err = r.executeSessionRun(session, run, execOpts)
-
-	updatedSession, found, sessionErr := r.state.GetSession(session.ID)
-	if sessionErr != nil {
-		return state.Session{}, state.Run{}, sessionErr
-	}
-	if !found {
-		return state.Session{}, state.Run{}, fmt.Errorf("session %q disappeared", session.ID)
-	}
-	updatedRun, found, runErr := r.state.GetRun(run.ID)
-	if runErr != nil {
-		return state.Session{}, state.Run{}, runErr
-	}
-	if !found {
-		return state.Session{}, state.Run{}, fmt.Errorf("run %q disappeared", run.ID)
-	}
-
-	if err != nil {
-		return updatedSession, updatedRun, err
-	}
-	return updatedSession, updatedRun, nil
+	}, nil
 }
 
-// ContinueSession appends one follow-up run to an existing session.
-func (r *Runner) ContinueSession(sessionID, prompt string) (state.Run, error) {
+func (r *Runner) prepareFollowUpRun(sessionID, prompt string) (state.Session, state.Run, sessionRunOptions, error) {
 	if r.state == nil {
-		return state.Run{}, errors.New("state store not configured")
+		return state.Session{}, state.Run{}, sessionRunOptions{}, errors.New("state store not configured")
 	}
 	sessionID = strings.TrimSpace(sessionID)
 	prompt = strings.TrimSpace(prompt)
 	if sessionID == "" {
-		return state.Run{}, errors.New("session id is required")
+		return state.Session{}, state.Run{}, sessionRunOptions{}, errors.New("session id is required")
 	}
 	if prompt == "" {
-		return state.Run{}, errors.New("prompt is required")
+		return state.Session{}, state.Run{}, sessionRunOptions{}, errors.New("prompt is required")
 	}
 
 	session, found, err := r.state.GetSession(sessionID)
 	if err != nil {
-		return state.Run{}, err
+		return state.Session{}, state.Run{}, sessionRunOptions{}, err
 	}
 	if !found {
-		return state.Run{}, fmt.Errorf("session %q not found", sessionID)
+		return state.Session{}, state.Run{}, sessionRunOptions{}, fmt.Errorf("session %q not found", sessionID)
 	}
 	if session.Busy {
-		return state.Run{}, fmt.Errorf("session %q is busy", sessionID)
+		return state.Session{}, state.Run{}, sessionRunOptions{}, fmt.Errorf("session %q is busy", sessionID)
 	}
-
 	if err := r.state.SetSessionBusy(session.ID, true); err != nil {
-		return state.Run{}, err
+		return state.Session{}, state.Run{}, sessionRunOptions{}, err
 	}
 
 	now := time.Now().UTC()
@@ -165,24 +196,35 @@ func (r *Runner) ContinueSession(sessionID, prompt string) (state.Run, error) {
 		UpdatedAt: now,
 	}
 	if err := r.state.CreateRun(run); err != nil {
-		return state.Run{}, err
+		_ = r.state.SetSessionBusy(session.ID, false)
+		return state.Session{}, state.Run{}, sessionRunOptions{}, err
 	}
 
-	err = r.executeSessionRun(session, run, sessionRunOptions{
+	return session, run, sessionRunOptions{
 		Prompt:     prompt,
 		BaseBranch: "main",
-	})
-	updatedRun, found, runErr := r.state.GetRun(run.ID)
-	if runErr != nil {
-		return state.Run{}, runErr
+	}, nil
+}
+
+func (r *Runner) loadSessionAndRun(sessionID, runID string, runErr error) (state.Session, state.Run, error) {
+	updatedSession, found, sessionErr := r.state.GetSession(sessionID)
+	if sessionErr != nil {
+		return state.Session{}, state.Run{}, sessionErr
 	}
 	if !found {
-		return state.Run{}, fmt.Errorf("run %q disappeared", run.ID)
+		return state.Session{}, state.Run{}, fmt.Errorf("session %q disappeared", sessionID)
 	}
-	if err != nil {
-		return updatedRun, err
+	updatedRun, found, getRunErr := r.state.GetRun(runID)
+	if getRunErr != nil {
+		return state.Session{}, state.Run{}, getRunErr
 	}
-	return updatedRun, nil
+	if !found {
+		return state.Session{}, state.Run{}, fmt.Errorf("run %q disappeared", runID)
+	}
+	if runErr != nil {
+		return updatedSession, updatedRun, runErr
+	}
+	return updatedSession, updatedRun, nil
 }
 
 // GetSession returns one session by id.

@@ -133,6 +133,31 @@ curl -X POST http://localhost:8080/api/tasks/create \
   }'
 ```
 
+Create session API test (async default):
+
+```bash
+curl -X POST http://localhost:8080/api/sessions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo":"<owner/repo-name>",
+    "prompt":"Implement a small logging improvement",
+    "tool":"claude",
+    "autopr":false
+  }'
+```
+
+Inspect sessions + runs:
+
+```bash
+curl http://localhost:8080/api/sessions
+curl http://localhost:8080/api/sessions/<session_id>
+curl http://localhost:8080/api/sessions/<session_id>/runs
+curl -X POST http://localhost:8080/api/sessions/<session_id>/runs \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"Follow up: add tests"}'
+curl http://localhost:8080/api/sessions/<session_id>/runs/<run_id>/events
+```
+
 ## 6. Web UI test
 
 ```bash

@@ -37,6 +37,12 @@ This document reflects the currently implemented product surface in this reposit
   - `GET /api/tasks`
   - `GET /api/tasks/{id}`
   - `POST /api/tasks/create`
+  - `GET /api/sessions`
+  - `POST /api/sessions`
+  - `GET /api/sessions/{id}`
+  - `GET /api/sessions/{id}/runs`
+  - `POST /api/sessions/{id}/runs`
+  - `GET /api/sessions/{id}/runs/{run_id}/events`
   - `GET /api/settings`
   - `PUT /api/settings`
 - Built-in web UI served at `/`:
@@ -45,6 +51,10 @@ This document reflects the currently implemented product surface in this reposit
 - Slack integration:
   - HTTP slash-command mode (`/slack/command`)
   - Socket Mode (`@fog`) with thread follow-ups
+- Session API defaults:
+  - `POST /api/sessions` runs async by default and returns session/run ids
+  - `POST /api/sessions/{id}/runs` runs async by default
+  - branch name is generated from `branch_prefix` + prompt slug when `branch_name` is omitted
 
 ## Slack command contract
 

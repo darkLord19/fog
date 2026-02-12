@@ -40,6 +40,8 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/tasks", s.handleTasks)
 	mux.HandleFunc("/api/tasks/create", s.handleCreateTask)
 	mux.HandleFunc("/api/tasks/", s.handleTaskDetail)
+	mux.HandleFunc("/api/sessions", s.handleSessions)
+	mux.HandleFunc("/api/sessions/", s.handleSessionDetail)
 	mux.HandleFunc("/api/settings", s.handleSettings)
 	mux.HandleFunc("/health", s.handleHealth)
 }
