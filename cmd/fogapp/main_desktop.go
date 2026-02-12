@@ -1,4 +1,4 @@
-//go:build desktop
+//go:build desktop || bindings
 
 package main
 
@@ -29,15 +29,17 @@ func main() {
 }
 
 func runDesktop() error {
-	fogHome, err := env.FogHome()
-	if err != nil {
-		return err
-	}
-
-	const port = 8080
-	baseURL, err := daemon.EnsureRunning(fogHome, port, 20*time.Second)
-	if err != nil {
-		return fmt.Errorf("ensure fogd running: %w", err)
+	baseURL := "http://127.0.0.1:8080"
+	if !isBindingsBuild {
+		fogHome, err := env.FogHome()
+		if err != nil {
+			return err
+		}
+		const port = 8080
+		baseURL, err = daemon.EnsureRunning(fogHome, port, 20*time.Second)
+		if err != nil {
+			return fmt.Errorf("ensure fogd running: %w", err)
+		}
 	}
 	frontendFS, err := fs.Sub(assets, "frontend")
 	if err != nil {
