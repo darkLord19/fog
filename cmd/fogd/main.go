@@ -8,18 +8,19 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/spf13/cobra"
 	"github.com/darkLord19/wtx/pkg/fog/api"
+	"github.com/darkLord19/wtx/pkg/fog/env"
 	"github.com/darkLord19/wtx/pkg/fog/runner"
 	"github.com/darkLord19/wtx/pkg/fog/slack"
+	"github.com/spf13/cobra"
 )
 
 var version = "dev"
 
 var (
-	flagPort          int
-	flagSlackSecret   string
-	flagEnableSlack   bool
+	flagPort        int
+	flagSlackSecret string
+	flagEnableSlack bool
 )
 
 func main() {
@@ -52,7 +53,7 @@ func init() {
 	rootCmd.Flags().IntVar(&flagPort, "port", 8080, "HTTP server port")
 	rootCmd.Flags().StringVar(&flagSlackSecret, "slack-secret", "", "Slack signing secret")
 	rootCmd.Flags().BoolVar(&flagEnableSlack, "enable-slack", false, "Enable Slack integration")
-	
+
 	rootCmd.AddCommand(versionCmd)
 }
 
@@ -62,56 +63,56 @@ func runDaemon() error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Get config dir
-	home, err := os.UserHomeDir()
+	fogHome, err := env.FogHome()
 	if err != nil {
 		return err
 	}
-	configDir := fmt.Sprintf("%s/.config/fog", home)
-	
+	configDir := fogHome
+
 	// Create runner
 	r, err := runner.New(cwd, configDir)
 	if err != nil {
 		return err
 	}
-	
+
 	// Create mux
 	mux := http.NewServeMux()
-	
+
 	// Register API routes
 	apiServer := api.New(r, flagPort)
 	apiServer.RegisterRoutes(mux)
-	
+
 	// Register Slack integration if enabled
 	if flagEnableSlack {
 		if flagSlackSecret == "" {
 			log.Println("Warning: Slack enabled but no signing secret provided")
 		}
-		
+
 		slackHandler := slack.New(r, flagSlackSecret)
 		mux.HandleFunc("/slack/command", slackHandler.HandleCommand)
-		
+
 		log.Println("Slack integration enabled")
 		log.Printf("Slack webhook: http://localhost:%d/slack/command\n", flagPort)
 		log.Println("Note: Use a tunnel service (ngrok, cloudflared) to expose this to Slack")
 	}
-	
+
 	// Graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	
+
 	go func() {
 		<-sigChan
 		log.Println("\nShutting down gracefully...")
 		os.Exit(0)
 	}()
-	
+
 	// Start server
 	addr := fmt.Sprintf(":%d", flagPort)
 	log.Printf("Starting fogd on %s\n", addr)
 	log.Printf("API: http://localhost:%d/api/\n", flagPort)
 	log.Printf("Health: http://localhost:%d/health\n", flagPort)
-	
+
 	return http.ListenAndServe(addr, mux)
 }

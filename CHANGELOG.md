@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **SQLite state store** - Central state in `~/.fog/fog.db` (modernc.org/sqlite)
 - **Encrypted PAT persistence** - File-key AES-GCM encryption for GitHub token storage
 - **GitHub API client** - Token validation and paginated repository discovery primitives
+- **Onboarding command** - `fog setup` to configure PAT and default tool
+- **Repo commands** - `fog repos discover|import|list`
 
 ### Added - wtx Enhancements
 - `wtx status <n>` - Detailed worktree status

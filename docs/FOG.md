@@ -39,6 +39,7 @@ Execute AI tasks safely and locally.
 
 **Commands:**
 ```bash
+fog setup             # Configure PAT + default tool
 fog run \
   --branch feature-otp \
   --tool claude \
@@ -48,6 +49,9 @@ fog run \
 
 fog list              # List all tasks
 fog status <id>       # Task status
+fog repos discover    # List repos accessible by PAT
+fog repos import      # Select and register repos
+fog repos list        # List registered repos
 ```
 
 ### 3. fogd - Control Plane Daemon
@@ -102,7 +106,13 @@ wtx list
 wtx add test-branch
 ```
 
-### 2. Run AI Task with fog
+### 2. Onboard Fog (one-time)
+
+```bash
+fog setup
+```
+
+### 3. Run AI Task with fog
 
 ```bash
 fog run \
@@ -114,7 +124,14 @@ fog run \
   --commit
 ```
 
-### 3. Start fogd (Optional)
+### 4. Discover/import repositories
+
+```bash
+fog repos discover
+fog repos import
+```
+
+### 5. Start fogd (Optional)
 
 ```bash
 # Start daemon

@@ -6,26 +6,27 @@ import (
 	"os"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/spf13/cobra"
+	"github.com/darkLord19/wtx/pkg/fog/env"
 	"github.com/darkLord19/wtx/pkg/fog/runner"
 	"github.com/darkLord19/wtx/pkg/fog/task"
+	"github.com/google/uuid"
+	"github.com/spf13/cobra"
 )
 
 var version = "dev"
 
 var (
-	flagBranch     string
-	flagTool       string
-	flagPrompt     string
-	flagCommit     bool
-	flagPR         bool
-	flagValidate   bool
-	flagBaseBranch string
-	flagSetupCmd   string
+	flagBranch      string
+	flagTool        string
+	flagPrompt      string
+	flagCommit      bool
+	flagPR          bool
+	flagValidate    bool
+	flagBaseBranch  string
+	flagSetupCmd    string
 	flagValidateCmd string
-	flagAsync      bool
-	flagJSON       bool
+	flagAsync       bool
+	flagJSON        bool
 )
 
 func main() {
@@ -104,13 +105,13 @@ func init() {
 	runCmd.Flags().StringVar(&flagSetupCmd, "setup-cmd", "", "Setup command to run")
 	runCmd.Flags().StringVar(&flagValidateCmd, "validate-cmd", "", "Validation command to run")
 	runCmd.Flags().BoolVar(&flagAsync, "async", false, "Run asynchronously")
-	
+
 	runCmd.MarkFlagRequired("branch")
 	runCmd.MarkFlagRequired("prompt")
-	
+
 	// list command flags
 	listCmd.Flags().BoolVar(&flagJSON, "json", false, "Output as JSON")
-	
+
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(statusCmd)
@@ -123,20 +124,20 @@ func runTask() error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Get config dir
-	home, err := os.UserHomeDir()
+	fogHome, err := env.FogHome()
 	if err != nil {
 		return err
 	}
-	configDir := fmt.Sprintf("%s/.config/fog", home)
-	
+	configDir := fogHome
+
 	// Create runner
 	r, err := runner.New(cwd, configDir)
 	if err != nil {
 		return err
 	}
-	
+
 	// Create task
 	t := &task.Task{
 		ID:        uuid.New().String(),
@@ -156,52 +157,52 @@ func runTask() error {
 			Async:       flagAsync,
 		},
 	}
-	
+
 	fmt.Printf("Starting task %s\n", t.ID)
 	fmt.Printf("Branch: %s\n", t.Branch)
 	fmt.Printf("AI Tool: %s\n", t.AITool)
 	fmt.Printf("Prompt: %s\n", t.Prompt)
 	fmt.Println()
-	
+
 	// Execute
 	if err := r.Execute(t); err != nil {
 		return fmt.Errorf("task execution failed: %w", err)
 	}
-	
+
 	fmt.Println()
 	fmt.Printf("✅ Task completed in %v\n", t.Duration())
 	fmt.Printf("State: %s\n", t.State)
 	fmt.Printf("Worktree: %s\n", t.WorktreePath)
-	
+
 	if prURL, ok := t.Metadata["pr_url"].(string); ok {
 		fmt.Printf("PR: %s\n", prURL)
 	}
-	
+
 	return nil
 }
 
 func listTasks() error {
-	home, err := os.UserHomeDir()
+	fogHome, err := env.FogHome()
 	if err != nil {
 		return err
 	}
-	configDir := fmt.Sprintf("%s/.config/fog", home)
-	
+	configDir := fogHome
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	
+
 	r, err := runner.New(cwd, configDir)
 	if err != nil {
 		return err
 	}
-	
+
 	tasks, err := r.ListTasks()
 	if err != nil {
 		return err
 	}
-	
+
 	if flagJSON {
 		data, err := json.MarshalIndent(tasks, "", "  ")
 		if err != nil {
@@ -210,15 +211,15 @@ func listTasks() error {
 		fmt.Println(string(data))
 		return nil
 	}
-	
+
 	if len(tasks) == 0 {
 		fmt.Println("No tasks found")
 		return nil
 	}
-	
+
 	fmt.Printf("%-36s %-15s %-20s %s\n", "ID", "STATE", "BRANCH", "CREATED")
 	fmt.Println(string(make([]byte, 100)))
-	
+
 	for _, t := range tasks {
 		fmt.Printf("%-36s %-15s %-20s %s\n",
 			t.ID,
@@ -226,32 +227,32 @@ func listTasks() error {
 			t.Branch,
 			t.CreatedAt.Format("2006-01-02 15:04"))
 	}
-	
+
 	return nil
 }
 
 func showStatus(id string) error {
-	home, err := os.UserHomeDir()
+	fogHome, err := env.FogHome()
 	if err != nil {
 		return err
 	}
-	configDir := fmt.Sprintf("%s/.config/fog", home)
-	
+	configDir := fogHome
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	
+
 	r, err := runner.New(cwd, configDir)
 	if err != nil {
 		return err
 	}
-	
+
 	t, err := r.GetTask(id)
 	if err != nil {
 		return err
 	}
-	
+
 	fmt.Printf("Task: %s\n", t.ID)
 	fmt.Printf("State: %s\n", t.State)
 	fmt.Printf("Branch: %s\n", t.Branch)
@@ -259,18 +260,18 @@ func showStatus(id string) error {
 	fmt.Printf("Prompt: %s\n", t.Prompt)
 	fmt.Printf("Created: %s\n", t.CreatedAt.Format("2006-01-02 15:04:05"))
 	fmt.Printf("Duration: %v\n", t.Duration())
-	
+
 	if t.WorktreePath != "" {
 		fmt.Printf("Worktree: %s\n", t.WorktreePath)
 	}
-	
+
 	if t.Error != "" {
 		fmt.Printf("Error: %s\n", t.Error)
 	}
-	
+
 	if prURL, ok := t.Metadata["pr_url"].(string); ok {
 		fmt.Printf("PR: %s\n", prURL)
 	}
-	
+
 	return nil
 }

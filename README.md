@@ -66,6 +66,9 @@ go install github.com/darkLord19/wtx/cmd/{wtx,fog,fogd}@latest
 ### Basic Usage
 
 ```bash
+# 0. One-time onboarding (PAT + default tool)
+fog setup
+
 # 1. Simple AI task
 fog run \
   --branch feature-otp \
@@ -85,6 +88,10 @@ fog run \
 
 # 3. Start daemon
 fogd --port 8080
+
+# 4. Discover/import repos via configured PAT
+fog repos discover
+fog repos import
 ```
 
 ### Slack Usage
