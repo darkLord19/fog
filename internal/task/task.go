@@ -42,6 +42,7 @@ type Options struct {
 	CreatePR     bool   `json:"create_pr"`
 	Validate     bool   `json:"validate"`
 	BaseBranch   string `json:"base_branch"`
+	CommitMsg    string `json:"commit_msg,omitempty"`
 	SetupCmd     string `json:"setup_cmd"`
 	ValidateCmd  string `json:"validate_cmd"`
 	Async        bool   `json:"async"`

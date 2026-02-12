@@ -239,8 +239,14 @@ See `internal/ai/` for examples.
 
 In Slack:
 ```
-/fog create branch feature-login and implement OAuth login
+/fog [repo='acme-api' tool='claude' autopr=true branch-name='feature-login' commit-msg='add oauth login'] implement OAuth login
 ```
+
+Rules:
+- `repo` is required.
+- Optional keys: `tool`, `model`, `autopr`, `branch-name`, `commit-msg`.
+- If `branch-name` is omitted, Fog generates a branch from prompt and `branch_prefix`.
+- Unknown keys are rejected.
 
 Response:
 ```
@@ -428,8 +434,8 @@ curl -X POST http://localhost:8080/api/tasks/create \
 
 ### Example 5: Via Slack
 
-```
-/fog create branch feature-search and implement full-text search with Elasticsearch
+```text
+/fog [repo='acme-api' tool='claude'] implement full-text search with Elasticsearch
 ```
 
 ## Troubleshooting

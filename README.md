@@ -104,7 +104,7 @@ fog repos import
 ### Slack Usage
 
 ```
-/fog create branch feature-search and add full-text search
+/fog [repo='acme-api' tool='claude' autopr=true branch-name='feature-search' commit-msg='add search'] implement full-text search
 ```
 
 → Response:
@@ -133,7 +133,7 @@ Duration: 2m 30s
 
 ### fogd (Control Plane)
 - 🌐 **HTTP API** - RESTful task management
-- 💬 **Slack** - Slash command integration
+- 💬 **Slack** - Option-based command parsing for async task launch
 - 🔄 **Async** - Fire-and-forget execution
 - 📢 **Notifications** - Completion alerts
 - 🔌 **Extensible** - Easy to add integrations

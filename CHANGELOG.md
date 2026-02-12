@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Runner worktree path resolution** - Fog now reads `wtx add --json` output instead of hardcoded paths
 - **Default tool enforcement** - CLI/API/Slack now require explicit tool or configured `default_tool`
 - **Repo-aware task execution** - `fog run --repo <name>` and API tasks execute against registered managed repos
+- **Slack option parser** - Supports `/fog [repo='' tool='' model='' autopr=... branch-name='' commit-msg=''] prompt`
 
 ### Added - wtx Enhancements
 - `wtx status <n>` - Detailed worktree status

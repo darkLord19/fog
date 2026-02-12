@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"regexp"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -15,14 +15,14 @@ import (
 	"github.com/google/uuid"
 )
 
-// Handler handles Slack slash commands and interactions
+// Handler handles Slack slash commands and interactions.
 type Handler struct {
 	stateStore    *state.Store
 	runner        *runner.Runner
 	signingSecret string
 }
 
-// New creates a new Slack handler
+// New creates a new Slack handler.
 func New(runner *runner.Runner, stateStore *state.Store, signingSecret string) *Handler {
 	return &Handler{
 		stateStore:    stateStore,
@@ -31,7 +31,7 @@ func New(runner *runner.Runner, stateStore *state.Store, signingSecret string) *
 	}
 }
 
-// SlackCommand represents a Slack slash command
+// SlackCommand represents a Slack slash command payload.
 type SlackCommand struct {
 	Token       string `json:"token"`
 	TeamID      string `json:"team_id"`
@@ -45,14 +45,13 @@ type SlackCommand struct {
 	ResponseURL string `json:"response_url"`
 }
 
-// HandleCommand handles Slack slash commands
+// HandleCommand handles Slack slash commands.
 func (h *Handler) HandleCommand(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Parse form data
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -71,23 +70,25 @@ func (h *Handler) HandleCommand(w http.ResponseWriter, r *http.Request) {
 		ResponseURL: r.FormValue("response_url"),
 	}
 
-	// Parse command text
-	t, err := h.parseCommand(cmd.Text)
+	parsed, err := parseCommandText(cmd.Text)
 	if err != nil {
 		h.sendErrorResponse(w, err.Error())
 		return
 	}
 
-	// Set Slack context
-	t.Options.SlackChannel = cmd.ChannelID
-	t.Options.Async = true // Slack commands are always async
+	t, repoPath, err := h.buildTask(parsed)
+	if err != nil {
+		h.sendErrorResponse(w, err.Error())
+		return
+	}
 
-	// Send immediate acknowledgment
+	t.Options.SlackChannel = cmd.ChannelID
+	t.Options.Async = true
+
 	h.sendAckResponse(w, t)
 
-	// Execute task asynchronously
 	go func() {
-		if err := h.runner.Execute(t); err != nil {
+		if err := h.runner.ExecuteInRepo(repoPath, t); err != nil {
 			h.sendCompletionNotification(cmd.ResponseURL, t, err)
 			return
 		}
@@ -95,46 +96,73 @@ func (h *Handler) HandleCommand(w http.ResponseWriter, r *http.Request) {
 	}()
 }
 
-// parseCommand parses Slack command text into a task
-// Example: "create branch feature-otp and add otp login using redis"
-func (h *Handler) parseCommand(text string) (*task.Task, error) {
-	text = strings.TrimSpace(text)
-
-	// Match pattern: "create branch <n> and <prompt>"
-	re := regexp.MustCompile(`(?i)create\s+branch\s+(\S+)\s+and\s+(.+)`)
-	matches := re.FindStringSubmatch(text)
-
-	if len(matches) != 3 {
-		return nil, fmt.Errorf("invalid command format. Use: create branch <n> and <prompt>")
+func (h *Handler) buildTask(parsed *parsedCommand) (*task.Task, string, error) {
+	if h.stateStore == nil {
+		return nil, "", fmt.Errorf("state store is not configured")
 	}
 
-	branch := matches[1]
-	prompt := matches[2]
-	tool, err := toolcfg.ResolveTool("", h.stateStore, "slack")
+	repo, found, err := h.stateStore.GetRepoByName(parsed.Repo)
 	if err != nil {
-		return nil, err
+		return nil, "", err
+	}
+	if !found {
+		return nil, "", fmt.Errorf("unknown repo: %s", parsed.Repo)
+	}
+	if strings.TrimSpace(repo.BaseWorktreePath) == "" {
+		return nil, "", fmt.Errorf("repo %s has no base worktree path", parsed.Repo)
+	}
+
+	tool, err := toolcfg.ResolveTool(parsed.Tool, h.stateStore, "slack")
+	if err != nil {
+		return nil, "", err
+	}
+
+	branch := strings.TrimSpace(parsed.BranchName)
+	if branch == "" {
+		branchPrefix := "fog"
+		if configured, ok, err := h.stateStore.GetSetting("branch_prefix"); err == nil && ok && strings.TrimSpace(configured) != "" {
+			branchPrefix = configured
+		}
+		branch = generateBranchName(branchPrefix, parsed.Prompt)
+	}
+
+	if isProtectedBranch(branch) {
+		return nil, "", fmt.Errorf("protected branch %q is not allowed", branch)
+	}
+	if !isValidBranchName(repo.BaseWorktreePath, branch) {
+		return nil, "", fmt.Errorf("invalid branch name: %s", branch)
+	}
+
+	baseBranch := strings.TrimSpace(repo.DefaultBranch)
+	if baseBranch == "" {
+		baseBranch = "main"
 	}
 
 	t := &task.Task{
 		ID:        uuid.New().String(),
 		State:     task.StateCreated,
 		Branch:    branch,
-		Prompt:    prompt,
+		Prompt:    parsed.Prompt,
 		AITool:    tool,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 		Options: task.Options{
-			Commit:     true,  // Auto-commit for Slack
-			CreatePR:   false, // User can create PR via buttons
+			Commit:     true,
+			CreatePR:   parsed.AutoPR,
 			Validate:   false,
-			BaseBranch: "main",
+			BaseBranch: baseBranch,
+			CommitMsg:  parsed.CommitMsg,
 		},
 	}
 
-	return t, nil
+	if parsed.Model != "" {
+		t.Metadata = map[string]interface{}{"model": parsed.Model}
+	}
+
+	return t, repo.BaseWorktreePath, nil
 }
 
-// sendAckResponse sends immediate acknowledgment
+// sendAckResponse sends immediate acknowledgment.
 func (h *Handler) sendAckResponse(w http.ResponseWriter, t *task.Task) {
 	response := map[string]interface{}{
 		"response_type": "in_channel",
@@ -148,10 +176,10 @@ func (h *Handler) sendAckResponse(w http.ResponseWriter, t *task.Task) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
-// sendErrorResponse sends an error response
+// sendErrorResponse sends an error response.
 func (h *Handler) sendErrorResponse(w http.ResponseWriter, errorMsg string) {
 	response := map[string]interface{}{
 		"response_type": "ephemeral",
@@ -159,10 +187,10 @@ func (h *Handler) sendErrorResponse(w http.ResponseWriter, errorMsg string) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
-// sendCompletionNotification sends completion notification to Slack
+// sendCompletionNotification sends completion notification to Slack.
 func (h *Handler) sendCompletionNotification(responseURL string, t *task.Task, err error) {
 	var message map[string]interface{}
 
@@ -178,7 +206,6 @@ func (h *Handler) sendCompletionNotification(responseURL string, t *task.Task, e
 			},
 		}
 	} else {
-		// Success message
 		duration := t.Duration()
 
 		attachment := map[string]interface{}{
@@ -197,7 +224,6 @@ func (h *Handler) sendCompletionNotification(responseURL string, t *task.Task, e
 			},
 		}
 
-		// Add PR URL if available
 		if prURL, ok := t.Metadata["pr_url"].(string); ok {
 			attachment["fields"] = append(attachment["fields"].([]map[string]interface{}), map[string]interface{}{
 				"title": "Pull Request",
@@ -206,7 +232,6 @@ func (h *Handler) sendCompletionNotification(responseURL string, t *task.Task, e
 			})
 		}
 
-		// Add action buttons
 		actions := []map[string]interface{}{
 			{
 				"type":  "button",
@@ -217,7 +242,6 @@ func (h *Handler) sendCompletionNotification(responseURL string, t *task.Task, e
 		}
 
 		if _, ok := t.Metadata["pr_url"]; !ok {
-			// Add Create PR button if PR not created yet
 			actions = append(actions, map[string]interface{}{
 				"type":  "button",
 				"text":  "Create PR",
@@ -236,7 +260,11 @@ func (h *Handler) sendCompletionNotification(responseURL string, t *task.Task, e
 		}
 	}
 
-	// Send to response URL
 	payload, _ := json.Marshal(message)
-	http.Post(responseURL, "application/json", strings.NewReader(string(payload)))
+	_, _ = http.Post(responseURL, "application/json", strings.NewReader(string(payload)))
+}
+
+func isValidBranchName(repoPath, branch string) bool {
+	cmd := exec.Command("git", "-C", repoPath, "check-ref-format", "--branch", branch)
+	return cmd.Run() == nil
 }
