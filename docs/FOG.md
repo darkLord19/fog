@@ -289,8 +289,15 @@ curl -X POST http://localhost:8080/api/tasks/create \
       "create_pr": false,
       "validate": true,
       "async": true
-    }
+}
   }'
+```
+
+### 6. Open Web UI
+
+```bash
+fog ui
+# Checks /health; if fogd is not running, starts it and opens browser.
 ```
 
 **GET /api/tasks/{id}**

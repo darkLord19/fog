@@ -93,6 +93,9 @@ fog run \
 # 3. Start daemon
 fogd --port 8080
 
+# 3b. Open UI (starts fogd automatically if needed)
+fog ui
+
 # 4. Discover/import repos via configured PAT
 fog repos discover
 fog repos import
@@ -134,6 +137,7 @@ Duration: 2m 30s
 ### fogd (Control Plane)
 - 🌐 **HTTP API** - RESTful task management
 - 💬 **Slack** - Option-based command parsing for async task launch
+- 🖥️ **Web UI launcher** - `fog ui` auto-starts fogd if not running
 - 🔄 **Async** - Fire-and-forget execution
 - 📢 **Notifications** - Completion alerts
 - 🔌 **Extensible** - Easy to add integrations

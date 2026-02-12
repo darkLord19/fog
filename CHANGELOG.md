@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Default tool enforcement** - CLI/API/Slack now require explicit tool or configured `default_tool`
 - **Repo-aware task execution** - `fog run --repo <name>` and API tasks execute against registered managed repos
 - **Slack option parser** - Supports `/fog [repo='' tool='' model='' autopr=... branch-name='' commit-msg=''] prompt`
+- **UI launcher** - `fog ui` ensures fogd is running and opens the web UI URL
 
 ### Added - wtx Enhancements
 - `wtx status <n>` - Detailed worktree status
