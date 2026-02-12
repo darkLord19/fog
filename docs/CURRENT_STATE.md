@@ -53,7 +53,9 @@ This document reflects the currently implemented product surface in this reposit
   - `GET /api/settings`
   - `PUT /api/settings`
 - Built-in web UI served at `/`:
-  - task activity dashboard
+  - session activity dashboard
+  - create session + follow-up actions
+  - repo discovery/import and managed repo listing
   - default tool + branch prefix settings
 - Slack integration:
   - HTTP slash-command mode (`/slack/command`)

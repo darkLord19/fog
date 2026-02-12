@@ -173,8 +173,9 @@ Expected checks:
 - if PAT/default tool are missing, onboarding form is shown first
 - onboarding form accepts GitHub PAT + default tool and persists both
 - opens `http://127.0.0.1:8080/`
-- shows active/total tasks
-- lists repo + branch + state + tool
+- shows active/total sessions
+- allows creating a new session and follow-up run
+- allows discovering/importing repos and updates managed repo list
 - settings form updates `default_tool` and `branch_prefix`
 
 ## 7. Slack HTTP mode test
