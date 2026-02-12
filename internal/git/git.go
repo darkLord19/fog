@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
-	"time"
 )
 
 // Git wraps git operations for a repository
@@ -47,12 +46,12 @@ type Remote struct {
 func (g *Git) exec(args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = g.repoPath
-	
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("git %s: %w\n%s", strings.Join(args, " "), err, string(output))
 	}
-	
+
 	return strings.TrimSpace(string(output)), nil
 }
 

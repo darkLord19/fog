@@ -1,7 +1,6 @@
 package git
 
 import (
-	"fmt"
 	"path/filepath"
 	"strings"
 )
@@ -12,7 +11,7 @@ func (g *Git) ListWorktrees() ([]Worktree, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return parseWorktreeList(output), nil
 }
 
@@ -35,7 +34,7 @@ func (g *Git) RemoveWorktree(path string, force bool) error {
 		args = append(args, "--force")
 	}
 	args = append(args, path)
-	
+
 	_, err := g.exec(args...)
 	return err
 }
@@ -46,19 +45,19 @@ func (g *Git) PruneWorktrees(dryRun bool) ([]string, error) {
 	if dryRun {
 		args = append(args, "--dry-run")
 	}
-	
+
 	output, err := g.exec(args...)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var pruned []string
 	for _, line := range strings.Split(output, "\n") {
 		if line != "" {
 			pruned = append(pruned, line)
 		}
 	}
-	
+
 	return pruned, nil
 }
 
@@ -66,7 +65,7 @@ func (g *Git) PruneWorktrees(dryRun bool) ([]string, error) {
 func parseWorktreeList(output string) []Worktree {
 	var worktrees []Worktree
 	var current *Worktree
-	
+
 	for _, line := range strings.Split(output, "\n") {
 		if line == "" {
 			if current != nil {
@@ -75,14 +74,14 @@ func parseWorktreeList(output string) []Worktree {
 			}
 			continue
 		}
-		
+
 		parts := strings.SplitN(line, " ", 2)
 		if len(parts) < 2 {
 			continue
 		}
-		
+
 		key, value := parts[0], parts[1]
-		
+
 		switch key {
 		case "worktree":
 			current = &Worktree{
@@ -108,11 +107,11 @@ func parseWorktreeList(output string) []Worktree {
 			}
 		}
 	}
-	
+
 	// Don't forget the last one
 	if current != nil {
 		worktrees = append(worktrees, *current)
 	}
-	
+
 	return worktrees
 }
