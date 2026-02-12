@@ -49,7 +49,9 @@ fog status <id>       # Task status
 Daemon with HTTP API + Slack
 
 ```bash
-fogd --port 8080 --enable-slack
+fogd --port 8080 --enable-slack --slack-mode socket \
+  --slack-bot-token xoxb-... \
+  --slack-app-token xapp-...
 ```
 
 ## 🚀 Quick Start
@@ -107,7 +109,10 @@ fog repos import
 ### Slack Usage
 
 ```
-/fog [repo='acme-api' tool='claude' autopr=true branch-name='feature-search' commit-msg='add search'] implement full-text search
+@fog [repo='acme-api' tool='claude' autopr=true branch-name='feature-search' commit-msg='add search'] implement full-text search
+
+# Follow-up in the same Slack thread (plain prompt only)
+@fog tighten validation and add tests
 ```
 
 → Response:
@@ -136,7 +141,7 @@ Duration: 2m 30s
 
 ### fogd (Control Plane)
 - 🌐 **HTTP API** - RESTful task management
-- 💬 **Slack** - Option-based command parsing for async task launch
+- 💬 **Slack** - HTTP slash commands + Socket Mode (`@fog`) with thread follow-ups
 - 🖥️ **Web UI launcher** - `fog ui` auto-starts fogd if not running
 - 🔄 **Async** - Fire-and-forget execution
 - 📢 **Notifications** - Completion alerts
@@ -184,7 +189,10 @@ fog list  # See all active tasks
 ### Team Collaboration
 ```
 # Slack: Start task
-/fog create branch feature-api and add REST endpoints
+@fog [repo='acme-api'] create branch feature-api and add REST endpoints
+
+# Slack thread follow-up
+@fog add pagination and request tests
 
 # Get notification when done
 ✅ Task completed
@@ -240,13 +248,23 @@ POST /api/tasks/create
 ## 💬 Slack Setup
 
 1. Create app at https://api.slack.com/apps
-2. Add slash command `/fog`
-3. Point to `https://your-tunnel.ngrok.io/slack/command`
-4. Start fogd:
+2. Enable **Socket Mode** and generate an app token (`xapp-...`) with `connections:write`
+3. Add bot scopes: `chat:write`, `app_mentions:read`, `commands`, then install app and copy bot token (`xoxb-...`)
+4. Start fogd in Socket Mode:
    ```bash
-   ngrok http 8080
-   fogd --port 8080 --enable-slack --slack-secret <secret>
+   fogd --port 8080 --enable-slack --slack-mode socket \
+     --slack-bot-token <xoxb-token> \
+     --slack-app-token <xapp-token>
    ```
+5. Use in Slack:
+   - Initial task: `@fog [repo='acme-api' tool='claude'] implement OAuth login`
+   - Follow-up (same thread): `@fog add edge-case tests`
+
+HTTP slash-command mode is also supported:
+```bash
+ngrok http 8080
+fogd --port 8080 --enable-slack --slack-mode http --slack-secret <secret>
+```
 
 ## 🏗️ Architecture
 

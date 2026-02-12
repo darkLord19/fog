@@ -68,8 +68,11 @@ Async control + integrations.
 **Usage:**
 ```bash
 fogd --port 8080                  # API only
-fogd --enable-slack \            # With Slack
-     --slack-secret <secret>
+fogd --enable-slack --slack-mode http \
+     --slack-secret <secret>      # HTTP slash-command mode
+fogd --enable-slack --slack-mode socket \
+     --slack-bot-token <xoxb-...> \
+     --slack-app-token <xapp-...> # Socket Mode (@fog mentions)
 ```
 
 ## Installation
@@ -217,21 +220,29 @@ See `internal/ai/` for examples.
 
 1. Create Slack App at https://api.slack.com/apps
 
-2. Add Slash Command:
-   - Command: `/fog`
-   - Request URL: `https://your-tunnel.ngrok.io/slack/command`
-   - Description: `Run AI coding tasks`
+2. Enable Socket Mode and create an app token (`xapp-...`) with `connections:write`
 
-3. Install to workspace
+3. Add bot scopes and install app:
+   - `chat:write`
+   - `app_mentions:read`
+   - `commands`
+   - Install app to workspace and copy bot token (`xoxb-...`)
 
-4. Start fogd with Slack:
+4. Start fogd with Slack Socket Mode:
    ```bash
-   # Use ngrok or cloudflared for tunnel
-   ngrok http 8080
-
-   # Start fogd
    fogd --port 8080 \
         --enable-slack \
+        --slack-mode socket \
+        --slack-bot-token <your-bot-token> \
+        --slack-app-token <your-app-token>
+   ```
+
+5. Optional: HTTP slash-command mode is still available:
+   ```bash
+   ngrok http 8080
+   fogd --port 8080 \
+        --enable-slack \
+        --slack-mode http \
         --slack-secret <your-signing-secret>
    ```
 
@@ -239,7 +250,10 @@ See `internal/ai/` for examples.
 
 In Slack:
 ```
-/fog [repo='acme-api' tool='claude' autopr=true branch-name='feature-login' commit-msg='add oauth login'] implement OAuth login
+@fog [repo='acme-api' tool='claude' autopr=true branch-name='feature-login' commit-msg='add oauth login'] implement OAuth login
+
+# Follow-up in same thread (plain prompt only)
+@fog tighten validation and add tests
 ```
 
 Rules:
@@ -247,6 +261,7 @@ Rules:
 - Optional keys: `tool`, `model`, `autopr`, `branch-name`, `commit-msg`.
 - If `branch-name` is omitted, Fog generates a branch from prompt and `branch_prefix`.
 - Unknown keys are rejected.
+- Thread follow-ups must be plain prompts (no options block). Follow-ups reuse repo/tool context from the latest Fog task in that thread.
 
 Response:
 ```

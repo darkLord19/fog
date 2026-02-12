@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/darkLord19/wtx/internal/api"
@@ -22,6 +24,9 @@ var (
 	flagPort        int
 	flagSlackSecret string
 	flagEnableSlack bool
+	flagSlackMode   string
+	flagSlackBot    string
+	flagSlackApp    string
 )
 
 func main() {
@@ -54,6 +59,9 @@ func init() {
 	rootCmd.Flags().IntVar(&flagPort, "port", 8080, "HTTP server port")
 	rootCmd.Flags().StringVar(&flagSlackSecret, "slack-secret", "", "Slack signing secret")
 	rootCmd.Flags().BoolVar(&flagEnableSlack, "enable-slack", false, "Enable Slack integration")
+	rootCmd.Flags().StringVar(&flagSlackMode, "slack-mode", "http", "Slack integration mode: http or socket")
+	rootCmd.Flags().StringVar(&flagSlackBot, "slack-bot-token", "", "Slack bot token (xoxb-..., required for socket mode)")
+	rootCmd.Flags().StringVar(&flagSlackApp, "slack-app-token", "", "Slack app token (xapp-..., required for socket mode)")
 
 	rootCmd.AddCommand(versionCmd)
 }
@@ -93,16 +101,38 @@ func runDaemon() error {
 
 	// Register Slack integration if enabled
 	if flagEnableSlack {
-		if flagSlackSecret == "" {
-			log.Println("Warning: Slack enabled but no signing secret provided")
+		mode := strings.ToLower(strings.TrimSpace(flagSlackMode))
+		if err := validateSlackConfig(mode, flagSlackBot, flagSlackApp); err != nil {
+			return err
 		}
 
-		slackHandler := slack.New(r, stateStore, flagSlackSecret)
-		mux.HandleFunc("/slack/command", slackHandler.HandleCommand)
+		switch mode {
+		case "http":
+			if strings.TrimSpace(flagSlackSecret) == "" {
+				log.Println("Warning: Slack HTTP mode enabled without --slack-secret")
+			}
 
-		log.Println("Slack integration enabled")
-		log.Printf("Slack webhook: http://localhost:%d/slack/command\n", flagPort)
-		log.Println("Note: Use a tunnel service (ngrok, cloudflared) to expose this to Slack")
+			slackHandler := slack.New(r, stateStore, flagSlackSecret)
+			mux.HandleFunc("/slack/command", slackHandler.HandleCommand)
+
+			log.Println("Slack integration enabled (http mode)")
+			log.Printf("Slack webhook: http://localhost:%d/slack/command\n", flagPort)
+			log.Println("Note: Use a tunnel service (ngrok, cloudflared) to expose this to Slack")
+
+		case "socket":
+			socketServer := slack.NewSocketMode(r, stateStore, flagSlackApp, flagSlackBot)
+			go func() {
+				if err := socketServer.Run(context.Background()); err != nil {
+					log.Printf("Slack socket mode stopped: %v", err)
+				}
+			}()
+
+			log.Println("Slack integration enabled (socket mode)")
+			log.Println("Socket mode active: listening for app mentions and slash commands over WebSocket")
+
+		default:
+			return fmt.Errorf("invalid --slack-mode %q: expected http or socket", flagSlackMode)
+		}
 	}
 
 	// Graceful shutdown
@@ -122,4 +152,18 @@ func runDaemon() error {
 	log.Printf("Health: http://localhost:%d/health\n", flagPort)
 
 	return http.ListenAndServe(addr, mux)
+}
+
+func validateSlackConfig(mode, botToken, appToken string) error {
+	switch mode {
+	case "http":
+		return nil
+	case "socket":
+		if strings.TrimSpace(botToken) == "" || strings.TrimSpace(appToken) == "" {
+			return fmt.Errorf("slack socket mode requires --slack-bot-token and --slack-app-token")
+		}
+		return nil
+	default:
+		return fmt.Errorf("invalid --slack-mode %q: expected http or socket", mode)
+	}
 }

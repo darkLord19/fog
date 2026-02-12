@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Task tracking** - Persistent task and settings state in `~/.fog/fog.db`
 - **Async execution** - Fire-and-forget task running
 - **HTTP API** - RESTful endpoints for task management
-- **Slack integration** - Slash command `/fog` for team collaboration
+- **Slack integration** - HTTP slash-command mode and Socket Mode (`@fog`) for team collaboration
 - **Auto-commit** - Automatic git commit after AI completion
 - **Auto-PR** - Create pull requests via GitHub CLI
 - **Validation** - Run tests after AI task completes
@@ -28,7 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Runner worktree path resolution** - Fog now reads `wtx add --json` output instead of hardcoded paths
 - **Default tool enforcement** - CLI/API/Slack now require explicit tool or configured `default_tool`
 - **Repo-aware task execution** - `fog run --repo <name>` and API tasks execute against registered managed repos
-- **Slack option parser** - Supports `/fog [repo='' tool='' model='' autopr=... branch-name='' commit-msg=''] prompt`
+- **Slack option parser** - Supports `@fog [repo='' tool='' model='' autopr=... branch-name='' commit-msg=''] prompt`
+- **Slack thread follow-ups** - Reply in thread with `@fog <prompt>` to launch follow-up tasks from prior task context
 - **UI launcher** - `fog ui` ensures fogd is running and opens the web UI URL
 - **Cursor headless adapter** - Cursor now runs via `cursor-agent` instead of opening GUI only
 
