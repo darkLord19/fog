@@ -51,6 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added - Documentation
 - Complete Fog guide (docs/FOG.md)
+- Current state snapshot (docs/CURRENT_STATE.md)
+- End-to-end testing guide (docs/TESTING.md)
 - API documentation
 - Slack integration guide
 - Task lifecycle documentation

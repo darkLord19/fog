@@ -155,6 +155,8 @@ Duration: 2m 30s
 
 ## 📚 Documentation
 
+- **[Current State](docs/CURRENT_STATE.md)** - Implemented behavior snapshot
+- **[Testing Guide](docs/TESTING.md)** - Automated + end-to-end validation steps
 - **[Complete Fog Guide](docs/FOG.md)** - Full documentation
 - **[Project Summary](PROJECT_SUMMARY.md)** - Implementation details
 - **[Contributing](CONTRIBUTING.md)** - Development guide
@@ -351,9 +353,10 @@ code --install-extension *.vsix
 - [x] fog - AI orchestration  
 - [x] fogd - HTTP API
 - [x] Slack integration
+- [x] Lightweight web UI in fogd
 - [x] VS Code extension
 - [x] Claude Code MCP
-- [ ] Web GUI
+- [ ] Advanced GUI workflows
 - [ ] PR comment → re-run
 - [ ] Docker isolation
 - [ ] Team features
@@ -379,6 +382,7 @@ make install
 ## 📖 Examples
 
 See [docs/FOG.md](docs/FOG.md) for comprehensive examples.
+For validation steps, see [docs/TESTING.md](docs/TESTING.md).
 
 ## 📜 License
 

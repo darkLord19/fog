@@ -4,6 +4,10 @@
 
 Fog orchestrates AI coding tasks using existing AI tools (Cursor, Claude Code, Aider), executes them in isolated Git worktrees, and exposes async control via CLI, HTTP API, and Slack.
 
+Supporting docs:
+- Current implementation snapshot: `docs/CURRENT_STATE.md`
+- End-to-end validation steps: `docs/TESTING.md`
+
 ## Architecture
 
 Fog consists of three main components:
