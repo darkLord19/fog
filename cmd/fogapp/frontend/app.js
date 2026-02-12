@@ -5,7 +5,12 @@
     settings: null,
     sessions: [],
     repos: [],
-    discoveredRepos: []
+    discoveredRepos: [],
+    selectedSessionID: "",
+    selectedRunID: "",
+    timelineSession: null,
+    timelineRuns: [],
+    timelineEvents: []
   };
 
   function $(id) { return document.getElementById(id); }
@@ -32,7 +37,28 @@
     return dt.toLocaleString();
   }
 
+  function findRepo(name) {
+    return (state.repos || []).find(function (r) {
+      return String(r.name || "").trim() === String(name || "").trim();
+    }) || null;
+  }
+
+  function toWebRepoURL(raw) {
+    raw = String(raw || "").trim();
+    if (!raw) return "";
+    if (raw.indexOf("git@github.com:") === 0) {
+      raw = "https://github.com/" + raw.slice("git@github.com:".length);
+    }
+    if (raw.indexOf("https://github.com/") === 0) {
+      return raw.replace(/\.git$/i, "");
+    }
+    return "";
+  }
+
   async function resolveAPIBaseURL() {
+    if (window.__FOG_API_BASE_URL__) {
+      return String(window.__FOG_API_BASE_URL__);
+    }
     try {
       var app = window.go && window.go.main && window.go.main.desktopApp;
       if (app && typeof app.APIBaseURL === "function") {
@@ -81,7 +107,9 @@
       return;
     }
     select.innerHTML = state.sessions.map(function (s) {
-      return "<option value='" + escapeHTML(s.id) + "'>" + escapeHTML(s.repo_name + " :: " + s.branch) + "</option>";
+      var selected = s.id === state.selectedSessionID ? " selected" : "";
+      return "<option value='" + escapeHTML(s.id) + "'" + selected + ">" +
+        escapeHTML(s.repo_name + " :: " + s.branch) + "</option>";
     }).join("");
   }
 
@@ -100,26 +128,21 @@
       var stateClass = "state";
       if (s.status === "FAILED") stateClass += " state-failed";
       else if (activeStates[s.status]) stateClass += " state-active";
-
-      var prButton = "";
-      if (s.pr_url) {
-        prButton = "<button class='ghost open-pr-btn' data-url='" + escapeHTML(s.pr_url) + "' type='button'>Open PR</button>";
-      }
-
-      return "<article class='session-card'>" +
+      var selected = s.id === state.selectedSessionID ? " selected" : "";
+      return "<article class='session-card" + selected + "' data-session-id='" + escapeHTML(s.id) + "'>" +
         "<h4>" + escapeHTML(s.repo_name) + " / " + escapeHTML(s.branch) + "</h4>" +
         "<div class='session-meta'>" +
           "<span class='" + stateClass + "'>" + escapeHTML(s.status) + (s.busy ? "*" : "") + "</span>" +
           "<span>tool: " + escapeHTML(s.tool) + "</span>" +
           "<span>updated: " + escapeHTML(formatDate(s.updated_at)) + "</span>" +
         "</div>" +
-        "<div class='actions' style='margin-top:8px'>" + prButton + "</div>" +
       "</article>";
     }).join("");
 
-    Array.prototype.slice.call(document.querySelectorAll(".open-pr-btn")).forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        openExternal(btn.getAttribute("data-url"));
+    Array.prototype.slice.call(document.querySelectorAll(".session-card[data-session-id]")).forEach(function (el) {
+      el.addEventListener("click", function () {
+        var id = el.getAttribute("data-session-id");
+        selectSession(id, "");
       });
     });
   }
@@ -188,6 +211,140 @@
     }
   }
 
+  function renderTimelineEmpty(message) {
+    $("timeline-actions").innerHTML = "";
+    $("timeline-summary").textContent = message || "Select a session to inspect its runs and events.";
+    $("timeline-runs").innerHTML = "No runs loaded.";
+    $("timeline-events").innerHTML = "No run events loaded.";
+  }
+
+  function renderTimelineSummary(session) {
+    var repo = findRepo(session.repo_name);
+    var base = repo && repo.default_branch ? repo.default_branch : "main";
+    $("timeline-summary").innerHTML =
+      "<strong>" + escapeHTML(session.repo_name) + " / " + escapeHTML(session.branch) + "</strong>" +
+      "<div style='margin-top:4px;color:#596575;font-size:12px'>" +
+      "tool: " + escapeHTML(session.tool) +
+      " · base: " + escapeHTML(base) +
+      " · updated: " + escapeHTML(formatDate(session.updated_at)) +
+      "</div>";
+  }
+
+  function renderTimelineActions(session) {
+    var actions = [];
+    if (session.pr_url) {
+      actions.push("<button type='button' class='ghost timeline-link-btn' data-url='" + escapeHTML(session.pr_url) + "'>Open PR</button>");
+    }
+    var repo = findRepo(session.repo_name);
+    var repoWeb = repo ? toWebRepoURL(repo.url) : "";
+    if (repoWeb) {
+      var branchURL = repoWeb + "/tree/" + encodeURIComponent(session.branch || "");
+      actions.push("<button type='button' class='ghost timeline-link-btn' data-url='" + escapeHTML(branchURL) + "'>Open Branch</button>");
+      var base = repo.default_branch || "main";
+      var compareURL = repoWeb + "/compare/" + encodeURIComponent(base) + "..." + encodeURIComponent(session.branch || "") + "?expand=1";
+      actions.push("<button type='button' class='ghost timeline-link-btn' data-url='" + escapeHTML(compareURL) + "'>Compare</button>");
+    }
+    $("timeline-actions").innerHTML = actions.join("");
+    Array.prototype.slice.call(document.querySelectorAll(".timeline-link-btn")).forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var url = btn.getAttribute("data-url");
+        if (url) openExternal(url);
+      });
+    });
+  }
+
+  function renderTimelineRuns(runs) {
+    var body = $("timeline-runs");
+    if (!runs.length) {
+      body.innerHTML = "No runs found for this session.";
+      return;
+    }
+    body.innerHTML = runs.map(function (run) {
+      var selected = run.id === state.selectedRunID ? " selected" : "";
+      return "<div class='timeline-run" + selected + "'>" +
+        "<div>" +
+          "<div><strong>" + escapeHTML(run.state) + "</strong></div>" +
+          "<div style='font-size:11px;color:#596575'>" + escapeHTML(formatDate(run.updated_at || run.created_at)) + "</div>" +
+        "</div>" +
+        "<button type='button' class='ghost timeline-run-btn' data-run-id='" + escapeHTML(run.id) + "'>View Events</button>" +
+      "</div>";
+    }).join("");
+    Array.prototype.slice.call(document.querySelectorAll(".timeline-run-btn")).forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var runID = btn.getAttribute("data-run-id");
+        state.selectedRunID = runID;
+        loadRunEvents().catch(function (err) {
+          $("timeline-events").innerHTML = "Failed to load run events: " + escapeHTML(err.message);
+        });
+        renderTimelineRuns(state.timelineRuns);
+      });
+    });
+  }
+
+  function renderTimelineEvents(events) {
+    var body = $("timeline-events");
+    if (!events.length) {
+      body.innerHTML = "No events for this run.";
+      return;
+    }
+    body.innerHTML = events.map(function (ev) {
+      return "<div class='timeline-event'>" +
+        "<div class='timeline-event-head'>" +
+          "<span>" + escapeHTML(ev.type || "-") + "</span>" +
+          "<span>" + escapeHTML(formatDate(ev.ts)) + "</span>" +
+        "</div>" +
+        "<div class='timeline-event-body'>" + escapeHTML(ev.message || ev.data || "-") + "</div>" +
+      "</div>";
+    }).join("");
+  }
+
+  async function loadTimeline() {
+    if (!state.selectedSessionID) {
+      renderTimelineEmpty("Select a session to inspect its runs and events.");
+      return;
+    }
+    var detail = await fetchJSON("/api/sessions/" + encodeURIComponent(state.selectedSessionID));
+    state.timelineSession = detail && detail.session ? detail.session : null;
+    state.timelineRuns = detail && detail.runs ? detail.runs : [];
+    if (!state.timelineSession) {
+      renderTimelineEmpty("Session not found.");
+      return;
+    }
+    if (!state.selectedRunID && state.timelineRuns.length) {
+      state.selectedRunID = state.timelineRuns[0].id;
+    }
+    var hasRun = state.timelineRuns.some(function (r) { return r.id === state.selectedRunID; });
+    if (!hasRun) {
+      state.selectedRunID = state.timelineRuns.length ? state.timelineRuns[0].id : "";
+    }
+
+    renderTimelineSummary(state.timelineSession);
+    renderTimelineActions(state.timelineSession);
+    renderTimelineRuns(state.timelineRuns);
+    await loadRunEvents();
+  }
+
+  async function loadRunEvents() {
+    if (!state.selectedSessionID || !state.selectedRunID) {
+      renderTimelineEvents([]);
+      return;
+    }
+    var events = await fetchJSON(
+      "/api/sessions/" + encodeURIComponent(state.selectedSessionID) +
+      "/runs/" + encodeURIComponent(state.selectedRunID) + "/events?limit=200"
+    );
+    state.timelineEvents = events || [];
+    renderTimelineEvents(state.timelineEvents);
+  }
+
+  async function selectSession(sessionID, runID) {
+    state.selectedSessionID = String(sessionID || "").trim();
+    state.selectedRunID = String(runID || "").trim();
+    renderSessionSelect();
+    renderSessions();
+    await loadTimeline();
+  }
+
   async function loadAll() {
     $("daemon-badge").textContent = "fogd: connected";
     var result = await Promise.all([
@@ -204,6 +361,12 @@
     renderSessionSelect();
     renderRepos();
     renderCloudStatus(result[3] || {});
+
+    if (!state.selectedSessionID && state.sessions.length) {
+      await selectSession(state.sessions[0].id, "");
+    } else {
+      await loadTimeline();
+    }
   }
 
   async function onCreateSession(event) {
@@ -234,6 +397,9 @@
       $("new-prompt").value = "";
       $("new-branch").value = "";
       await refreshSessions();
+      if (out.session_id) {
+        await selectSession(out.session_id, "");
+      }
     } catch (err) {
       setStatus("new-status", "Create failed: " + err.message, "error");
     } finally {
@@ -259,6 +425,7 @@
       setStatus("followup-status", "Queued run " + out.run_id, "ok");
       $("followup-prompt").value = "";
       await refreshSessions();
+      await selectSession(sessionID, out.run_id || "");
     } catch (err) {
       setStatus("followup-status", "Follow-up failed: " + err.message, "error");
     } finally {
@@ -389,8 +556,20 @@
 
   async function refreshSessions() {
     state.sessions = await fetchJSON("/api/sessions");
+    if (state.selectedSessionID) {
+      var stillExists = state.sessions.some(function (s) { return s.id === state.selectedSessionID; });
+      if (!stillExists) {
+        state.selectedSessionID = state.sessions.length ? state.sessions[0].id : "";
+        state.selectedRunID = "";
+      }
+    }
     renderSessions();
     renderSessionSelect();
+    if (state.selectedSessionID) {
+      await loadTimeline();
+    } else {
+      renderTimelineEmpty("No active sessions.");
+    }
   }
 
   async function bootstrap() {
@@ -419,5 +598,6 @@
   bootstrap().catch(function (err) {
     $("daemon-badge").textContent = "fogd: unavailable";
     setStatus("new-status", "Initialization failed: " + err.message, "error");
+    renderTimelineEmpty("Initialization failed.");
   });
 })();
