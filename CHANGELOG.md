@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Slack option parser** - Supports `@fog [repo='' tool='' model='' autopr=... branch-name='' commit-msg=''] prompt`
 - **Slack thread follow-ups** - Reply in thread with `@fog <prompt>` to launch follow-up tasks from prior task context
 - **UI launcher** - `fog ui` ensures fogd is running and opens the web UI URL
+- **Built-in web UI** - Fogd now serves a lightweight dashboard at `/` for task activity and settings updates
+- **Settings API** - Added `GET/PUT /api/settings` for `default_tool` and `branch_prefix`
 - **Cursor headless adapter** - Cursor now runs via `cursor-agent` instead of opening GUI only
 
 ### Added - wtx Enhancements

@@ -142,7 +142,7 @@ Duration: 2m 30s
 ### fogd (Control Plane)
 - 🌐 **HTTP API** - RESTful task management
 - 💬 **Slack** - HTTP slash commands + Socket Mode (`@fog`) with thread follow-ups
-- 🖥️ **Web UI launcher** - `fog ui` auto-starts fogd if not running
+- 🖥️ **Built-in Web UI** - Served by fogd at `/`; `fog ui` auto-starts fogd if needed
 - 🔄 **Async** - Fire-and-forget execution
 - 📢 **Notifications** - Completion alerts
 - 🔌 **Extensible** - Easy to add integrations

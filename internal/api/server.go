@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/darkLord19/wtx/internal/ai"
 	"github.com/darkLord19/wtx/internal/runner"
 	"github.com/darkLord19/wtx/internal/state"
 	"github.com/darkLord19/wtx/internal/task"
@@ -31,9 +33,11 @@ func New(runner *runner.Runner, stateStore *state.Store, port int) *Server {
 
 // RegisterRoutes registers API routes on the provided mux
 func (s *Server) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/", s.handleUI)
 	mux.HandleFunc("/api/tasks", s.handleTasks)
 	mux.HandleFunc("/api/tasks/create", s.handleCreateTask)
 	mux.HandleFunc("/api/tasks/", s.handleTaskDetail)
+	mux.HandleFunc("/api/settings", s.handleSettings)
 	mux.HandleFunc("/health", s.handleHealth)
 }
 
@@ -179,6 +183,118 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"status": "ok",
 		"time":   time.Now().Format(time.RFC3339),
 	})
+}
+
+func (s *Server) handleUI(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(webUIHTML))
+}
+
+type SettingsResponse struct {
+	DefaultTool    string   `json:"default_tool,omitempty"`
+	BranchPrefix   string   `json:"branch_prefix,omitempty"`
+	HasGitHubToken bool     `json:"has_github_token"`
+	AvailableTools []string `json:"available_tools"`
+}
+
+type UpdateSettingsRequest struct {
+	DefaultTool  *string `json:"default_tool"`
+	BranchPrefix *string `json:"branch_prefix"`
+}
+
+func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		s.getSettings(w)
+	case http.MethodPut:
+		s.updateSettings(w, r)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Server) getSettings(w http.ResponseWriter) {
+	resp := SettingsResponse{
+		AvailableTools: detectAvailableTools(),
+	}
+
+	if tool, found, err := s.stateStore.GetDefaultTool(); err == nil && found {
+		resp.DefaultTool = tool
+	}
+	if prefix, found, err := s.stateStore.GetSetting("branch_prefix"); err == nil && found {
+		resp.BranchPrefix = prefix
+	}
+	if hasToken, err := s.stateStore.HasGitHubToken(); err == nil {
+		resp.HasGitHubToken = hasToken
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
+	var req UpdateSettingsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.DefaultTool != nil {
+		tool := strings.TrimSpace(*req.DefaultTool)
+		if tool == "" {
+			http.Error(w, "default_tool cannot be empty", http.StatusBadRequest)
+			return
+		}
+		if !isToolAvailable(tool) {
+			http.Error(w, fmt.Sprintf("default_tool %q is not available", tool), http.StatusBadRequest)
+			return
+		}
+		if err := s.stateStore.SetDefaultTool(tool); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if req.BranchPrefix != nil {
+		prefix := strings.TrimSpace(*req.BranchPrefix)
+		if prefix == "" {
+			http.Error(w, "branch_prefix cannot be empty", http.StatusBadRequest)
+			return
+		}
+		if err := s.stateStore.SetSetting("branch_prefix", prefix); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	s.getSettings(w)
+}
+
+func detectAvailableTools() []string {
+	names := []string{"cursor", "claude", "aider"}
+	out := make([]string, 0, len(names))
+	for _, name := range names {
+		if isToolAvailable(name) {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+func isToolAvailable(name string) bool {
+	tool, err := ai.GetTool(name)
+	if err != nil {
+		return false
+	}
+	return tool.IsAvailable()
 }
 
 // corsMiddleware adds CORS headers

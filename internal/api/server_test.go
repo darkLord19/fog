@@ -2,8 +2,10 @@ package api
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/darkLord19/wtx/internal/runner"
@@ -35,6 +37,70 @@ func TestHandleCreateTaskRejectsUnknownRepo(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("unexpected status: got %d want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleSettingsGet(t *testing.T) {
+	srv := newTestServer(t)
+	if err := srv.stateStore.SetSetting("branch_prefix", "fog"); err != nil {
+		t.Fatalf("set branch prefix failed: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/settings", nil)
+	w := httptest.NewRecorder()
+
+	srv.handleSettings(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: got %d want %d", w.Code, http.StatusOK)
+	}
+
+	var resp SettingsResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response failed: %v", err)
+	}
+	if resp.DefaultTool != "claude" {
+		t.Fatalf("unexpected default tool: %s", resp.DefaultTool)
+	}
+	if resp.BranchPrefix != "fog" {
+		t.Fatalf("unexpected branch prefix: %s", resp.BranchPrefix)
+	}
+}
+
+func TestHandleSettingsPut(t *testing.T) {
+	srv := newTestServer(t)
+	body := bytes.NewBufferString(`{"default_tool":"claude","branch_prefix":"team"}`)
+
+	req := httptest.NewRequest(http.MethodPut, "/api/settings", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	srv.handleSettings(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: got %d want %d body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	prefix, found, err := srv.stateStore.GetSetting("branch_prefix")
+	if err != nil {
+		t.Fatalf("read branch prefix failed: %v", err)
+	}
+	if !found || prefix != "team" {
+		t.Fatalf("unexpected branch prefix in state store: %q found=%v", prefix, found)
+	}
+}
+
+func TestHandleUIRoot(t *testing.T) {
+	srv := newTestServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+
+	srv.handleUI(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: got %d want %d", w.Code, http.StatusOK)
+	}
+	if !strings.Contains(w.Body.String(), "Fog Control Plane") {
+		t.Fatalf("expected ui html content in response")
 	}
 }
 

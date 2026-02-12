@@ -290,6 +290,21 @@ curl http://localhost:8080/health
 curl http://localhost:8080/api/tasks
 ```
 
+**GET /api/settings**
+```bash
+curl http://localhost:8080/api/settings
+```
+
+**PUT /api/settings**
+```bash
+curl -X PUT http://localhost:8080/api/settings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "default_tool": "claude",
+    "branch_prefix": "fog"
+  }'
+```
+
 **POST /api/tasks/create**
 ```bash
 curl -X POST http://localhost:8080/api/tasks/create \
@@ -313,6 +328,9 @@ curl -X POST http://localhost:8080/api/tasks/create \
 ```bash
 fog ui
 # Checks /health; if fogd is not running, starts it and opens browser.
+# The page is served by fogd at GET / and shows:
+# - active/all task list (auto-refresh)
+# - default tool + branch prefix settings editor
 ```
 
 **GET /api/tasks/{id}**
