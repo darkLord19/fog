@@ -46,6 +46,9 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/repos/discover", s.handleDiscoverRepos)
 	mux.HandleFunc("/api/repos/import", s.handleImportRepos)
 	mux.HandleFunc("/api/settings", s.handleSettings)
+	mux.HandleFunc("/api/cloud", s.handleCloud)
+	mux.HandleFunc("/api/cloud/pair", s.handleCloudPair)
+	mux.HandleFunc("/api/cloud/unpair", s.handleCloudUnpair)
 	mux.HandleFunc("/health", s.handleHealth)
 }
 

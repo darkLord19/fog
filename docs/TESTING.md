@@ -115,9 +115,13 @@ In another terminal:
 curl http://localhost:8080/health
 curl http://localhost:8080/api/tasks
 curl http://localhost:8080/api/settings
+curl http://localhost:8080/api/cloud
 curl -X PUT http://localhost:8080/api/settings \
   -H "Content-Type: application/json" \
   -d '{"default_tool":"claude","branch_prefix":"fog"}'
+curl -X PUT http://localhost:8080/api/cloud \
+  -H "Content-Type: application/json" \
+  -d '{"cloud_url":"https://fog-cloud.example"}'
 ```
 
 Create task API test:
@@ -163,6 +167,7 @@ Expected checks:
 - initial session create returns `session_id` and `run_id`
 - follow-up call returns a new `run_id` for the same `session_id`
 - run events include setup/ai/commit phases and terminal state
+- cloud config endpoint persists `cloud_url`
 
 ## 6. Web UI test
 
@@ -178,6 +183,7 @@ Expected checks:
 - allows creating a new session and follow-up run
 - allows discovering/importing repos and updates managed repo list
 - settings form updates `default_tool` and `branch_prefix`
+- cloud section can save `cloud_url`, pair with a code, and unpair a user mapping
 
 ## 7. Slack HTTP mode test
 

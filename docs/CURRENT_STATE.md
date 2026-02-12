@@ -52,6 +52,10 @@ This document reflects the currently implemented product surface in this reposit
   - `POST /api/repos/import`
   - `GET /api/settings`
   - `PUT /api/settings`
+  - `GET /api/cloud`
+  - `PUT /api/cloud`
+  - `POST /api/cloud/pair`
+  - `POST /api/cloud/unpair`
 - Built-in web UI served at `/`:
   - session activity dashboard
   - create session + follow-up actions
@@ -60,6 +64,10 @@ This document reflects the currently implemented product surface in this reposit
 - Slack integration:
   - HTTP slash-command mode (`/slack/command`)
   - Socket Mode (`@fog`) with thread follow-ups
+- Optional cloud relay mode:
+  - configure cloud URL + pairing in local API/UI
+  - `fogd` claims cloud jobs for the paired device and executes them through session runner
+  - completion is posted back through cloud API and thread mapping is preserved
 - Session API defaults:
   - `POST /api/sessions` runs async by default and returns session/run ids
   - `POST /api/sessions/{id}/runs` runs async by default
@@ -128,6 +136,9 @@ State details:
   - `run_events`
   This is the persistence base for the upcoming desktop session UI and follow-up workflow.
 - Cloud foundation uses a separate SQLite file (`fogcloud.db`) and key file (`cloud.key`) in its configured data dir.
+- Local fogd cloud pairing state is persisted in `~/.fog/fog.db`:
+  - settings: `cloud_url`, `cloud_device_id`
+  - encrypted secret: `cloud_device_token`
 
 ## Distribution
 
@@ -152,7 +163,7 @@ Default tool must be explicitly configured, otherwise API/Slack/CLI task creatio
 ## What is intentionally not implemented yet
 
 - Full OAuth onboarding (PAT-only today).
-- End-to-end cloud relay (device claim/dispatch execution loop).
+- Standalone `fogcloud` binary wiring (cloud server package exists; CLI binary pending).
 - PR comment rerun loop.
 - Containerized task isolation.
 - Production-ready team/multi-user auth model.

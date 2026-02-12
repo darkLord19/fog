@@ -188,13 +188,14 @@ const webUIHTML = `<!doctype html>
       .control { grid-column: span 4; }
       .repos { grid-column: span 6; }
       .settings { grid-column: span 6; }
+      .cloud { grid-column: span 6; }
     }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>Fog Control Plane</h1>
-    <p class="sub">Manage sessions, repos, and local defaults.</p>
+    <p class="sub">Manage sessions, repos, local defaults, and cloud pairing.</p>
 
     <div class="grid">
       <section class="card onboarding" id="onboarding-card" style="display:none;">
@@ -335,6 +336,46 @@ const webUIHTML = `<!doctype html>
           <button id="save-btn" type="submit">Save Settings</button>
           <span class="status" id="save-status"></span>
         </form>
+      </section>
+
+      <section class="card cloud">
+        <h2>Cloud Pairing</h2>
+        <p class="hint">Connect this fogd instance to cloud Slack routing.</p>
+        <form id="cloud-config-form">
+          <div class="row">
+            <label for="cloud-url">Cloud URL</label>
+            <input id="cloud-url" name="cloud_url" placeholder="https://fog-cloud.example">
+          </div>
+          <button id="cloud-save-btn" type="submit">Save Cloud URL</button>
+          <span class="status" id="cloud-save-status"></span>
+        </form>
+
+        <form id="cloud-pair-form" style="margin-top:12px;">
+          <div class="row">
+            <label for="cloud-pair-code">Pair Code</label>
+            <input id="cloud-pair-code" name="code" placeholder="AB12CD34">
+          </div>
+          <button id="cloud-pair-btn" type="submit">Pair Device</button>
+          <span class="status" id="cloud-pair-status"></span>
+        </form>
+
+        <form id="cloud-unpair-form" style="margin-top:12px;">
+          <div class="row">
+            <label for="cloud-team-id">Team ID</label>
+            <input id="cloud-team-id" name="team_id" placeholder="T123456">
+          </div>
+          <div class="row">
+            <label for="cloud-user-id">Slack User ID</label>
+            <input id="cloud-user-id" name="slack_user_id" placeholder="U123456">
+          </div>
+          <button class="button-muted" id="cloud-unpair-btn" type="submit">Unpair User</button>
+          <span class="status" id="cloud-unpair-status"></span>
+        </form>
+
+        <div class="row" style="margin-top:12px;">
+          <label>Device</label>
+          <div class="mono" id="cloud-device-status">unpaired</div>
+        </div>
       </section>
     </div>
   </div>
@@ -495,6 +536,14 @@ const webUIHTML = `<!doctype html>
       document.getElementById("pat-status").textContent = settings.has_github_token ? "configured" : "missing";
       document.getElementById("onboarding-card").style.display = settings.onboarding_required ? "block" : "none";
       document.getElementById("setup-warning").style.display = settings.onboarding_required ? "block" : "none";
+    }
+
+    async function loadCloudStatus() {
+      var cloud = await fetchJSON("/api/cloud");
+      document.getElementById("cloud-url").value = cloud.cloud_url || "";
+      document.getElementById("cloud-device-status").textContent = cloud.paired
+        ? ("paired (" + (cloud.device_id || "-") + ")")
+        : "unpaired";
     }
 
     async function onSaveSettings(event) {
@@ -661,12 +710,83 @@ const webUIHTML = `<!doctype html>
       }
     }
 
+    async function onSaveCloudConfig(event) {
+      event.preventDefault();
+      var btn = document.getElementById("cloud-save-btn");
+      setStatus("cloud-save-status", "", "");
+      btn.disabled = true;
+      try {
+        var url = document.getElementById("cloud-url").value.trim();
+        if (!url) throw new Error("Cloud URL is required");
+        await fetchJSON("/api/cloud", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cloud_url: url })
+        });
+        setStatus("cloud-save-status", "Saved", "ok");
+        await loadCloudStatus();
+      } catch (err) {
+        setStatus("cloud-save-status", "Save failed: " + err.message, "error");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function onPairCloud(event) {
+      event.preventDefault();
+      var btn = document.getElementById("cloud-pair-btn");
+      setStatus("cloud-pair-status", "", "");
+      btn.disabled = true;
+      try {
+        var code = document.getElementById("cloud-pair-code").value.trim();
+        if (!code) throw new Error("Pair code is required");
+        await fetchJSON("/api/cloud/pair", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: code })
+        });
+        setStatus("cloud-pair-status", "Paired", "ok");
+        document.getElementById("cloud-pair-code").value = "";
+        await loadCloudStatus();
+      } catch (err) {
+        setStatus("cloud-pair-status", "Pair failed: " + err.message, "error");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function onUnpairCloud(event) {
+      event.preventDefault();
+      var btn = document.getElementById("cloud-unpair-btn");
+      setStatus("cloud-unpair-status", "", "");
+      btn.disabled = true;
+      try {
+        var teamID = document.getElementById("cloud-team-id").value.trim();
+        var userID = document.getElementById("cloud-user-id").value.trim();
+        if (!teamID || !userID) throw new Error("Team ID and Slack User ID are required");
+        await fetchJSON("/api/cloud/unpair", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ team_id: teamID, slack_user_id: userID })
+        });
+        setStatus("cloud-unpair-status", "Unpaired", "ok");
+        await loadCloudStatus();
+      } catch (err) {
+        setStatus("cloud-unpair-status", "Unpair failed: " + err.message, "error");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
     document.getElementById("settings-form").addEventListener("submit", onSaveSettings);
     document.getElementById("onboarding-form").addEventListener("submit", onCompleteOnboarding);
     document.getElementById("create-session-form").addEventListener("submit", onCreateSession);
     document.getElementById("followup-form").addEventListener("submit", onFollowUp);
     document.getElementById("discover-repos-btn").addEventListener("click", onDiscoverRepos);
     document.getElementById("import-repos-btn").addEventListener("click", onImportRepos);
+    document.getElementById("cloud-config-form").addEventListener("submit", onSaveCloudConfig);
+    document.getElementById("cloud-pair-form").addEventListener("submit", onPairCloud);
+    document.getElementById("cloud-unpair-form").addEventListener("submit", onUnpairCloud);
 
     refreshSessions();
     loadSettings().catch(function (err) {
@@ -674,6 +794,9 @@ const webUIHTML = `<!doctype html>
     });
     loadManagedRepos().catch(function (err) {
       setStatus("repos-status", "Managed repos load failed: " + err.message, "error");
+    });
+    loadCloudStatus().catch(function (err) {
+      setStatus("cloud-save-status", "Cloud load failed: " + err.message, "error");
     });
     setInterval(refreshSessions, 4000);
   </script>

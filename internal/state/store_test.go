@@ -70,6 +70,41 @@ func TestStoreGitHubTokenEncryptedAndOverwrite(t *testing.T) {
 	}
 }
 
+func TestStoreSecretRoundTripAndDelete(t *testing.T) {
+	store := newTestStore(t)
+	defer func() { _ = store.Close() }()
+
+	if err := store.SaveSecret("cloud_device_token", "secret-token"); err != nil {
+		t.Fatalf("save secret failed: %v", err)
+	}
+	got, found, err := store.GetSecret("cloud_device_token")
+	if err != nil {
+		t.Fatalf("get secret failed: %v", err)
+	}
+	if !found || got != "secret-token" {
+		t.Fatalf("unexpected secret value: found=%v got=%q", found, got)
+	}
+
+	has, err := store.HasSecret("cloud_device_token")
+	if err != nil {
+		t.Fatalf("has secret failed: %v", err)
+	}
+	if !has {
+		t.Fatal("expected secret to exist")
+	}
+
+	if err := store.DeleteSecret("cloud_device_token"); err != nil {
+		t.Fatalf("delete secret failed: %v", err)
+	}
+	_, found, err = store.GetSecret("cloud_device_token")
+	if err != nil {
+		t.Fatalf("get secret after delete failed: %v", err)
+	}
+	if found {
+		t.Fatal("expected secret to be deleted")
+	}
+}
+
 func TestHasGitHubToken(t *testing.T) {
 	store := newTestStore(t)
 	defer func() { _ = store.Close() }()

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -216,57 +217,94 @@ func (s *Store) GetSetting(key string) (value string, found bool, err error) {
 	return "", false, fmt.Errorf("get setting %q: %w", key, err)
 }
 
-// SaveGitHubToken encrypts and persists the PAT.
-func (s *Store) SaveGitHubToken(token string) error {
-	if token == "" {
-		return errors.New("token cannot be empty")
+// SaveSecret encrypts and persists a secret value by key.
+func (s *Store) SaveSecret(key, value string) error {
+	key = strings.TrimSpace(key)
+	value = strings.TrimSpace(value)
+	if key == "" {
+		return errors.New("secret key cannot be empty")
 	}
-
-	ciphertext, err := encrypt(githubPATKey, []byte(token), s.key)
+	if value == "" {
+		return errors.New("secret value cannot be empty")
+	}
+	ciphertext, err := encrypt(key, []byte(value), s.key)
 	if err != nil {
-		return fmt.Errorf("encrypt token: %w", err)
+		return fmt.Errorf("encrypt secret %q: %w", key, err)
 	}
-
 	_, err = s.db.Exec(
 		`INSERT INTO secrets(key, ciphertext, updated_at) VALUES(?, ?, ?)
 	 ON CONFLICT(key) DO UPDATE SET ciphertext=excluded.ciphertext, updated_at=excluded.updated_at`,
-		githubPATKey,
+		key,
 		ciphertext,
 		nowRFC3339Nano(),
 	)
 	if err != nil {
-		return fmt.Errorf("save github token: %w", err)
+		return fmt.Errorf("save secret %q: %w", key, err)
 	}
-
 	return nil
 }
 
-// GetGitHubToken retrieves and decrypts the PAT.
-func (s *Store) GetGitHubToken() (token string, found bool, err error) {
+// GetSecret retrieves and decrypts a secret by key.
+func (s *Store) GetSecret(key string) (value string, found bool, err error) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return "", false, errors.New("secret key cannot be empty")
+	}
 	var ciphertext []byte
-	err = s.db.QueryRow(`SELECT ciphertext FROM secrets WHERE key = ?`, githubPATKey).Scan(&ciphertext)
+	err = s.db.QueryRow(`SELECT ciphertext FROM secrets WHERE key = ?`, key).Scan(&ciphertext)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", false, nil
 	}
 	if err != nil {
-		return "", false, fmt.Errorf("load github token: %w", err)
+		return "", false, fmt.Errorf("load secret %q: %w", key, err)
 	}
 
-	plaintext, err := decrypt(githubPATKey, ciphertext, s.key)
+	plaintext, err := decrypt(key, ciphertext, s.key)
 	if err != nil {
-		return "", false, fmt.Errorf("decrypt github token: %w", err)
+		return "", false, fmt.Errorf("decrypt secret %q: %w", key, err)
 	}
 
 	return string(plaintext), true, nil
 }
 
-// HasGitHubToken reports whether an encrypted PAT exists.
-func (s *Store) HasGitHubToken() (bool, error) {
+// HasSecret reports whether a secret exists.
+func (s *Store) HasSecret(key string) (bool, error) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return false, errors.New("secret key cannot be empty")
+	}
 	var count int
-	if err := s.db.QueryRow(`SELECT COUNT(1) FROM secrets WHERE key = ?`, githubPATKey).Scan(&count); err != nil {
-		return false, fmt.Errorf("check github token: %w", err)
+	if err := s.db.QueryRow(`SELECT COUNT(1) FROM secrets WHERE key = ?`, key).Scan(&count); err != nil {
+		return false, fmt.Errorf("check secret %q: %w", key, err)
 	}
 	return count > 0, nil
+}
+
+// DeleteSecret removes one secret key.
+func (s *Store) DeleteSecret(key string) error {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return errors.New("secret key cannot be empty")
+	}
+	if _, err := s.db.Exec(`DELETE FROM secrets WHERE key = ?`, key); err != nil {
+		return fmt.Errorf("delete secret %q: %w", key, err)
+	}
+	return nil
+}
+
+// SaveGitHubToken encrypts and persists the PAT.
+func (s *Store) SaveGitHubToken(token string) error {
+	return s.SaveSecret(githubPATKey, token)
+}
+
+// GetGitHubToken retrieves and decrypts the PAT.
+func (s *Store) GetGitHubToken() (token string, found bool, err error) {
+	return s.GetSecret(githubPATKey)
+}
+
+// HasGitHubToken reports whether an encrypted PAT exists.
+func (s *Store) HasGitHubToken() (bool, error) {
+	return s.HasSecret(githubPATKey)
 }
 
 // SetDefaultTool stores the default AI tool used when task input omits "tool".

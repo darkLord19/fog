@@ -80,6 +80,8 @@ fogd --enable-slack --slack-mode http \
 fogd --enable-slack --slack-mode socket \
      --slack-bot-token <xoxb-...> \
      --slack-app-token <xapp-...> # Socket Mode (@fog mentions)
+fogd --cloud-url https://fog-cloud.example \
+     --cloud-poll-interval 2s     # Cloud relay mode (paired device required)
 ```
 
 ## Installation
@@ -310,6 +312,32 @@ curl -X PUT http://localhost:8080/api/settings \
     "default_tool": "claude",
     "branch_prefix": "fog"
   }'
+```
+
+**GET /api/cloud**
+```bash
+curl http://localhost:8080/api/cloud
+```
+
+**PUT /api/cloud**
+```bash
+curl -X PUT http://localhost:8080/api/cloud \
+  -H "Content-Type: application/json" \
+  -d '{"cloud_url":"https://fog-cloud.example"}'
+```
+
+**POST /api/cloud/pair**
+```bash
+curl -X POST http://localhost:8080/api/cloud/pair \
+  -H "Content-Type: application/json" \
+  -d '{"code":"AB12CD34"}'
+```
+
+**POST /api/cloud/unpair**
+```bash
+curl -X POST http://localhost:8080/api/cloud/unpair \
+  -H "Content-Type: application/json" \
+  -d '{"team_id":"T123","slack_user_id":"U123"}'
 ```
 
 **POST /api/tasks/create**
