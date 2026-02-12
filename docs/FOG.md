@@ -386,6 +386,10 @@ Prerequisites:
 Run:
 
 ```bash
+# launch directly
+fog app
+
+# or via Makefile helper
 make fogapp-dev
 ```
 

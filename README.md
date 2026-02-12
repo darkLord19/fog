@@ -116,6 +116,8 @@ fog ui
 # 3c. Desktop UI preview (Wails)
 # requires Wails CLI installed
 make fogapp-dev
+# or launch installed desktop binary wrapper
+fog app
 
 # 4. Discover/import repos via configured PAT
 fog repos discover
