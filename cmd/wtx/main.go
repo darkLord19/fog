@@ -11,6 +11,7 @@ import (
 	"github.com/yourusername/wtx/internal/editor"
 	"github.com/yourusername/wtx/internal/git"
 	"github.com/yourusername/wtx/internal/metadata"
+	"github.com/yourusername/wtx/internal/tui"
 )
 
 var version = "dev"
@@ -32,10 +33,18 @@ var rootCmd = &cobra.Command{
 	Short: "Git worktree manager",
 	Long:  `wtx - Fast, keyboard-driven workspace switcher for Git worktrees`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// TODO: Launch TUI
-		fmt.Println("wtx - workspace manager")
-		fmt.Println("Run 'wtx list' to see all worktrees")
-		fmt.Println("Run 'wtx --help' for usage")
+		// Get current directory
+		cwd, err := os.Getwd()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		
+		// Launch TUI
+		if err := tui.Run(cwd); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	},
 }
 
