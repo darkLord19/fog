@@ -1,0 +1,33 @@
+# Binaries
+/bin/
+/dist/
+wtx
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage.txt
+coverage.html
+
+# Tmp
+tmp/
+temp/
