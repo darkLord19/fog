@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced metadata tracking (setup status, validation)
 - Command execution utility
 - Metadata storage now resolves Git common dir for worktree compatibility
+- `wtx add` now creates the target branch when it does not already exist
 
 ### Added - Documentation
 - Complete Fog guide (docs/FOG.md)

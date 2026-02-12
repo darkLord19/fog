@@ -6,13 +6,13 @@ import (
 	"os"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/darkLord19/wtx/internal/config"
 	"github.com/darkLord19/wtx/internal/editor"
 	"github.com/darkLord19/wtx/internal/git"
 	"github.com/darkLord19/wtx/internal/metadata"
 	"github.com/darkLord19/wtx/internal/tui"
 	"github.com/darkLord19/wtx/internal/util"
+	"github.com/spf13/cobra"
 )
 
 var version = "dev"
@@ -40,7 +40,7 @@ var rootCmd = &cobra.Command{
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
-		
+
 		// Launch TUI
 		if err := tui.Run(cwd); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -70,9 +70,9 @@ var versionCmd = &cobra.Command{
 
 func init() {
 	listCmd.Flags().BoolVar(&flagJSON, "json", false, "Output as JSON")
-	
+
 	rootCmd.PersistentFlags().StringVar(&flagEditor, "editor", "", "Editor to use (vscode, cursor, neovim, etc)")
-	
+
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(addCmd)
 	rootCmd.AddCommand(openCmd)
@@ -92,7 +92,7 @@ var addCmd = &cobra.Command{
 		if len(args) > 1 {
 			branch = args[1]
 		}
-		
+
 		if err := runAdd(name, branch); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
@@ -153,19 +153,19 @@ func runList() error {
 	if err != nil {
 		return fmt.Errorf("get current directory: %w", err)
 	}
-	
+
 	// Initialize git
 	g := git.New(cwd)
 	if !g.IsRepo() {
 		return fmt.Errorf("not a git repository")
 	}
-	
+
 	// Get worktrees
 	worktrees, err := g.ListWorktrees()
 	if err != nil {
 		return fmt.Errorf("list worktrees: %w", err)
 	}
-	
+
 	if flagJSON {
 		// Output as JSON
 		data, err := json.MarshalIndent(worktrees, "", "  ")
@@ -175,20 +175,20 @@ func runList() error {
 		fmt.Println(string(data))
 		return nil
 	}
-	
+
 	// Human-readable output
 	if len(worktrees) == 0 {
 		fmt.Println("No worktrees found")
 		return nil
 	}
-	
+
 	for _, wt := range worktrees {
 		fmt.Printf("%-20s %s\n", wt.Name, wt.Path)
 		if wt.Branch != "" {
 			fmt.Printf("  └─ %s\n", wt.Branch)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -197,75 +197,85 @@ func runAdd(name, branch string) error {
 	if err != nil {
 		return fmt.Errorf("get current directory: %w", err)
 	}
-	
+
 	g := git.New(cwd)
 	if !g.IsRepo() {
 		return fmt.Errorf("not a git repository")
 	}
-	
+
 	// Load config
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
-	
+
 	// Get repo root
 	root, err := g.GetRepoRoot()
 	if err != nil {
 		return err
 	}
-	
+
 	// Determine worktree path
 	wtPath := fmt.Sprintf("%s/%s/%s", root, cfg.WorktreeDir, name)
-	
+
 	// Create worktree
 	fmt.Printf("Creating worktree '%s' at %s...\n", name, wtPath)
-	if err := g.AddWorktree(wtPath, branch); err != nil {
-		return fmt.Errorf("create worktree: %w", err)
+	if g.BranchExists(branch) {
+		if err := g.AddWorktree(wtPath, branch); err != nil {
+			return fmt.Errorf("create worktree: %w", err)
+		}
+	} else {
+		startPoint := cfg.DefaultBranch
+		if startPoint == "" {
+			startPoint = "HEAD"
+		}
+		if err := g.AddWorktreeNewBranch(wtPath, branch, startPoint); err != nil {
+			return fmt.Errorf("create worktree with new branch: %w", err)
+		}
 	}
-	
+
 	// Store metadata
 	store, err := metadata.New(root)
 	if err != nil {
 		return err
 	}
-	
+
 	wtMeta := &metadata.WorktreeMetadata{
 		Path:      wtPath,
 		CreatedAt: time.Now(),
 	}
-	
+
 	if err := store.SetWorktree(name, wtMeta); err != nil {
 		return err
 	}
-	
+
 	fmt.Printf("✓ Worktree '%s' created\n", name)
-	
+
 	// Run setup command if configured
 	if cfg.SetupCmd != "" {
 		fmt.Printf("Running setup command: %s\n", cfg.SetupCmd)
 		result := util.RunCommand(cfg.SetupCmd, wtPath)
-		
+
 		// Update metadata with setup results
 		wtMeta.SetupRan = true
 		wtMeta.SetupOutput = result.Output
-		
+
 		if result.Error != nil {
 			fmt.Printf("⚠ Setup command failed (exit %d)\n", result.ExitCode)
 			fmt.Printf("Output:\n%s\n", result.Output)
 			store.SetWorktree(name, wtMeta)
 			return fmt.Errorf("setup command failed: %w", result.Error)
 		}
-		
+
 		store.SetWorktree(name, wtMeta)
 		fmt.Printf("✓ Setup complete (%v)\n", result.Duration)
 	}
-	
+
 	// Auto-open if configured
 	if err := runOpen(name); err != nil {
 		fmt.Printf("Note: Could not auto-open: %v\n", err)
 	}
-	
+
 	return nil
 }
 
@@ -274,18 +284,18 @@ func runOpen(name string) error {
 	if err != nil {
 		return fmt.Errorf("get current directory: %w", err)
 	}
-	
+
 	g := git.New(cwd)
 	if !g.IsRepo() {
 		return fmt.Errorf("not a git repository")
 	}
-	
+
 	// Get worktrees
 	worktrees, err := g.ListWorktrees()
 	if err != nil {
 		return err
 	}
-	
+
 	// Find the worktree
 	var targetPath string
 	for _, wt := range worktrees {
@@ -294,34 +304,34 @@ func runOpen(name string) error {
 			break
 		}
 	}
-	
+
 	if targetPath == "" {
 		return fmt.Errorf("worktree '%s' not found", name)
 	}
-	
+
 	// Load config
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
-	
+
 	// Detect editor
 	editorName := flagEditor
 	if editorName == "" {
 		editorName = cfg.Editor
 	}
-	
+
 	ed, err := editor.Detect(editorName)
 	if err != nil {
 		return fmt.Errorf("no editor available: %w", err)
 	}
-	
+
 	fmt.Printf("Opening '%s' in %s...\n", name, ed.Name())
-	
+
 	if err := ed.Open(targetPath, cfg.ReuseWindow); err != nil {
 		return fmt.Errorf("open editor: %w", err)
 	}
-	
+
 	// Update last opened timestamp
 	root, _ := g.GetRepoRoot()
 	if root != "" {
@@ -330,7 +340,7 @@ func runOpen(name string) error {
 			store.UpdateLastOpened(name)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -339,18 +349,18 @@ func runRemove(name string) error {
 	if err != nil {
 		return fmt.Errorf("get current directory: %w", err)
 	}
-	
+
 	g := git.New(cwd)
 	if !g.IsRepo() {
 		return fmt.Errorf("not a git repository")
 	}
-	
+
 	// Get worktrees
 	worktrees, err := g.ListWorktrees()
 	if err != nil {
 		return err
 	}
-	
+
 	// Find the worktree
 	var targetPath string
 	for _, wt := range worktrees {
@@ -359,11 +369,11 @@ func runRemove(name string) error {
 			break
 		}
 	}
-	
+
 	if targetPath == "" {
 		return fmt.Errorf("worktree '%s' not found", name)
 	}
-	
+
 	// Check if it has uncommitted changes
 	hasChanges, err := g.HasUncommittedChanges(targetPath)
 	if err == nil && hasChanges {
@@ -371,24 +381,24 @@ func runRemove(name string) error {
 		fmt.Println("Options:")
 		fmt.Println("  [c] Cancel")
 		fmt.Println("  [f] Force delete")
-		
+
 		var choice string
 		fmt.Print("\nSelect: ")
 		fmt.Scanln(&choice)
-		
+
 		if choice != "f" {
 			fmt.Println("Cancelled")
 			return nil
 		}
 	}
-	
+
 	// Remove worktree
 	fmt.Printf("Removing worktree '%s'...\n", name)
 	force := hasChanges
 	if err := g.RemoveWorktree(targetPath, force); err != nil {
 		return fmt.Errorf("remove worktree: %w", err)
 	}
-	
+
 	// Delete metadata
 	root, _ := g.GetRepoRoot()
 	if root != "" {
@@ -397,9 +407,9 @@ func runRemove(name string) error {
 			store.DeleteWorktree(name)
 		}
 	}
-	
+
 	fmt.Printf("✓ Worktree '%s' removed\n", name)
-	
+
 	return nil
 }
 
@@ -408,18 +418,18 @@ func runStatus(name string) error {
 	if err != nil {
 		return fmt.Errorf("get current directory: %w", err)
 	}
-	
+
 	g := git.New(cwd)
 	if !g.IsRepo() {
 		return fmt.Errorf("not a git repository")
 	}
-	
+
 	// Get worktrees
 	worktrees, err := g.ListWorktrees()
 	if err != nil {
 		return err
 	}
-	
+
 	// Find the worktree
 	var wt *git.Worktree
 	for i := range worktrees {
@@ -428,17 +438,17 @@ func runStatus(name string) error {
 			break
 		}
 	}
-	
+
 	if wt == nil {
 		return fmt.Errorf("worktree '%s' not found", name)
 	}
-	
+
 	// Get status
 	status, err := g.GetStatus(wt.Path)
 	if err != nil {
 		return err
 	}
-	
+
 	// Get metadata
 	root, _ := g.GetRepoRoot()
 	var wtMeta *metadata.WorktreeMetadata
@@ -448,20 +458,20 @@ func runStatus(name string) error {
 			wtMeta, _ = store.GetWorktree(name)
 		}
 	}
-	
+
 	// Display status
 	fmt.Printf("Worktree: %s\n", name)
 	fmt.Printf("Path: %s\n", wt.Path)
 	fmt.Printf("Branch: %s\n", wt.Branch)
 	fmt.Printf("Head: %s\n", wt.Head[:8])
-	
+
 	if status != nil {
 		if status.Dirty {
 			fmt.Printf("Status: ✗ dirty\n")
 		} else {
 			fmt.Printf("Status: ● clean\n")
 		}
-		
+
 		if status.Ahead > 0 {
 			fmt.Printf("Ahead: ↑ %d commits\n", status.Ahead)
 		}
@@ -472,7 +482,7 @@ func runStatus(name string) error {
 			fmt.Printf("Stash: Yes\n")
 		}
 	}
-	
+
 	if wtMeta != nil {
 		fmt.Printf("\nMetadata:\n")
 		fmt.Printf("  Created: %s\n", wtMeta.CreatedAt.Format("2006-01-02 15:04:05"))
@@ -496,7 +506,7 @@ func runStatus(name string) error {
 			fmt.Printf("  Ports: %v\n", wtMeta.Ports)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -505,7 +515,7 @@ func runConfig() error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Display current config
 	fmt.Println("Current configuration:")
 	fmt.Println()
@@ -516,16 +526,16 @@ func runConfig() error {
 	fmt.Printf("default_branch: %s\n", cfg.DefaultBranch)
 	fmt.Printf("setup_cmd: %s\n", cfg.SetupCmd)
 	fmt.Printf("validate_cmd: %s\n", cfg.ValidateCmd)
-	
+
 	fmt.Println()
-	
+
 	// Get config path
 	path, err := config.ConfigPath()
 	if err != nil {
 		return err
 	}
-	
+
 	fmt.Printf("Config file: %s\n", path)
-	
+
 	return nil
 }

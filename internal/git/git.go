@@ -65,3 +65,12 @@ func (g *Git) IsRepo() bool {
 func (g *Git) GetRepoRoot() (string, error) {
 	return g.exec("rev-parse", "--show-toplevel")
 }
+
+// BranchExists checks if a local branch exists.
+func (g *Git) BranchExists(branch string) bool {
+	if strings.TrimSpace(branch) == "" {
+		return false
+	}
+	_, err := g.exec("show-ref", "--verify", "--quiet", "refs/heads/"+branch)
+	return err == nil
+}
