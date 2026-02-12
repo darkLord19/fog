@@ -23,12 +23,16 @@ type Metadata struct {
 
 // WorktreeMetadata stores metadata for a single worktree
 type WorktreeMetadata struct {
-	Path       string    `json:"path"`
-	CreatedAt  time.Time `json:"created_at"`
-	LastOpened time.Time `json:"last_opened"`
-	DevCommand string    `json:"dev_command,omitempty"`
-	Ports      []int     `json:"ports,omitempty"`
-	Notes      string    `json:"notes,omitempty"`
+	Path         string    `json:"path"`
+	CreatedAt    time.Time `json:"created_at"`
+	LastOpened   time.Time `json:"last_opened"`
+	DevCommand   string    `json:"dev_command,omitempty"`
+	Ports        []int     `json:"ports,omitempty"`
+	Notes        string    `json:"notes,omitempty"`
+	SetupRan     bool      `json:"setup_ran"`
+	SetupOutput  string    `json:"setup_output,omitempty"`
+	LastValidate time.Time `json:"last_validate,omitempty"`
+	ValidatePass bool      `json:"validate_pass"`
 }
 
 // New creates a new metadata store

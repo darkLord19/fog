@@ -14,6 +14,8 @@ type Config struct {
 	WorktreeDir    string `json:"worktree_dir"`
 	AutoStartDev   bool   `json:"auto_start_dev"`
 	DefaultBranch  string `json:"default_branch"`
+	SetupCmd       string `json:"setup_cmd"`        // Command to run after creating worktree
+	ValidateCmd    string `json:"validate_cmd"`     // Command to validate worktree
 }
 
 // DefaultConfig returns default configuration
