@@ -30,6 +30,12 @@ GOCACHE=/tmp/go-build go test ./internal/state
 GOCACHE=/tmp/go-build go test ./internal/runner
 ```
 
+Session persistence focus:
+
+```bash
+GOCACHE=/tmp/go-build go test ./internal/state -run Session
+```
+
 ## 2. wtx manual test
 
 Inside any git repo:

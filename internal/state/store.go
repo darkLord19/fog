@@ -119,6 +119,43 @@ func (s *Store) init() error {
 			slack_root_ts TEXT,
 			FOREIGN KEY(repo_id) REFERENCES repos(id)
 		);`,
+		`CREATE TABLE IF NOT EXISTS sessions (
+			id TEXT PRIMARY KEY,
+			repo_name TEXT NOT NULL,
+			branch TEXT NOT NULL,
+			worktree_path TEXT NOT NULL,
+			tool TEXT NOT NULL,
+			model TEXT,
+			autopr INTEGER NOT NULL DEFAULT 0,
+			pr_url TEXT,
+			status TEXT NOT NULL,
+			busy INTEGER NOT NULL DEFAULT 0,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL,
+			FOREIGN KEY(repo_name) REFERENCES repos(name)
+		);`,
+		`CREATE TABLE IF NOT EXISTS runs (
+			id TEXT PRIMARY KEY,
+			session_id TEXT NOT NULL,
+			prompt TEXT NOT NULL,
+			state TEXT NOT NULL,
+			commit_sha TEXT,
+			commit_msg TEXT,
+			error TEXT,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL,
+			completed_at TEXT,
+			FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
+		);`,
+		`CREATE TABLE IF NOT EXISTS run_events (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			run_id TEXT NOT NULL,
+			ts TEXT NOT NULL,
+			type TEXT NOT NULL,
+			message TEXT,
+			data TEXT,
+			FOREIGN KEY(run_id) REFERENCES runs(id) ON DELETE CASCADE
+		);`,
 		`CREATE TABLE IF NOT EXISTS task_events (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			task_id TEXT NOT NULL,
@@ -130,6 +167,9 @@ func (s *Store) init() error {
 		);`,
 		`CREATE INDEX IF NOT EXISTS idx_tasks_repo_created ON tasks(repo_id, created_at DESC);`,
 		`CREATE INDEX IF NOT EXISTS idx_task_events_task_ts ON task_events(task_id, ts DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_repo_updated ON sessions(repo_name, updated_at DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_runs_session_created ON runs(session_id, created_at DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_run_events_run_ts ON run_events(run_id, ts DESC);`,
 	}
 
 	for _, stmt := range stmts {

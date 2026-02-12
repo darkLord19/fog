@@ -71,7 +71,12 @@ State details:
 - PAT stored encrypted at rest (never plaintext).
 - Default tool and branch prefix stored in settings table.
 - Managed repos stored in repos table.
-- Task runs stored in SQLite task table(s).
+- Legacy task runs stored in SQLite task table(s) and task-run payload records.
+- Session-first schema is now available in SQLite:
+  - `sessions`
+  - `runs`
+  - `run_events`
+  This is the persistence base for the upcoming desktop session UI and follow-up workflow.
 
 ## Distribution
 
