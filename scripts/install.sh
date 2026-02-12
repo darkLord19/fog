@@ -1,0 +1,75 @@
+#!/bin/bash
+
+set -e
+
+echo "Installing wtx..."
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Check if Go is installed
+if ! command -v go &> /dev/null; then
+    echo -e "${RED}Error: Go is not installed${NC}"
+    echo "Please install Go from https://golang.org/dl/"
+    exit 1
+fi
+
+# Install wtx
+echo -e "${YELLOW}Installing wtx binary...${NC}"
+go install github.com/yourusername/wtx/cmd/wtx@latest
+
+# Check if installation was successful
+if command -v wtx &> /dev/null; then
+    echo -e "${GREEN}✓ wtx installed successfully${NC}"
+    wtx version
+else
+    echo -e "${RED}Error: Installation failed${NC}"
+    echo "Make sure \$GOPATH/bin is in your PATH"
+    exit 1
+fi
+
+# Install shell completions
+echo ""
+echo -e "${YELLOW}Installing shell completions...${NC}"
+
+# Detect shell
+SHELL_NAME=$(basename "$SHELL")
+
+case "$SHELL_NAME" in
+    bash)
+        COMPLETION_DIR="$HOME/.local/share/bash-completion/completions"
+        mkdir -p "$COMPLETION_DIR"
+        curl -sL https://raw.githubusercontent.com/yourusername/wtx/main/scripts/completions/wtx.bash \
+            -o "$COMPLETION_DIR/wtx"
+        echo -e "${GREEN}✓ Bash completions installed${NC}"
+        echo "Run: source $COMPLETION_DIR/wtx"
+        ;;
+    zsh)
+        COMPLETION_DIR="${ZDOTDIR:-$HOME}/.zsh/completions"
+        mkdir -p "$COMPLETION_DIR"
+        curl -sL https://raw.githubusercontent.com/yourusername/wtx/main/scripts/completions/wtx.zsh \
+            -o "$COMPLETION_DIR/_wtx"
+        echo -e "${GREEN}✓ Zsh completions installed${NC}"
+        echo "Add to ~/.zshrc: fpath=($COMPLETION_DIR \$fpath)"
+        ;;
+    fish)
+        echo -e "${YELLOW}Fish completions not yet available${NC}"
+        ;;
+    *)
+        echo -e "${YELLOW}Unknown shell, skipping completions${NC}"
+        ;;
+esac
+
+echo ""
+echo -e "${GREEN}Installation complete!${NC}"
+echo ""
+echo "Quick start:"
+echo "  wtx              # Launch interactive UI"
+echo "  wtx list         # List worktrees"
+echo "  wtx add <n>     # Create worktree"
+echo "  wtx open <n>    # Open in editor"
+echo ""
+echo "For more info: wtx --help"
