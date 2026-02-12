@@ -334,6 +334,40 @@ func (s *Store) ListRepos() ([]Repo, error) {
 	return repos, nil
 }
 
+// GetRepoByName returns one managed repo by alias.
+func (s *Store) GetRepoByName(name string) (Repo, bool, error) {
+	var repo Repo
+	var createdAt string
+	err := s.db.QueryRow(
+		`SELECT id, name, url, host, owner, repo, bare_path, base_worktree_path, default_branch, created_at
+		   FROM repos
+		  WHERE name = ?`,
+		name,
+	).Scan(
+		&repo.ID,
+		&repo.Name,
+		&repo.URL,
+		&repo.Host,
+		&repo.Owner,
+		&repo.Repo,
+		&repo.BarePath,
+		&repo.BaseWorktreePath,
+		&repo.DefaultBranch,
+		&createdAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Repo{}, false, nil
+	}
+	if err != nil {
+		return Repo{}, false, fmt.Errorf("get repo %q: %w", name, err)
+	}
+
+	if ts, err := time.Parse(time.RFC3339Nano, createdAt); err == nil {
+		repo.CreatedAt = ts
+	}
+	return repo, true, nil
+}
+
 func nowRFC3339Nano() string {
 	return time.Now().UTC().Format(time.RFC3339Nano)
 }

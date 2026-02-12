@@ -19,11 +19,6 @@ type Runner struct {
 
 // New creates a new runner
 func New(repoPath, configDir string) (*Runner, error) {
-	// Validate repo
-	if !isGitRepo(repoPath) {
-		return nil, fmt.Errorf("not a git repository: %s", repoPath)
-	}
-
 	// Create task store
 	store, err := task.NewStore(configDir)
 	if err != nil {
@@ -39,13 +34,22 @@ func New(repoPath, configDir string) (*Runner, error) {
 
 // Execute runs a task
 func (r *Runner) Execute(t *task.Task) error {
+	return r.executeWithRepoPath(r.repoPath, t)
+}
+
+// ExecuteInRepo runs a task against an explicit repository path.
+func (r *Runner) ExecuteInRepo(repoPath string, t *task.Task) error {
+	return r.executeWithRepoPath(repoPath, t)
+}
+
+func (r *Runner) executeWithRepoPath(repoPath string, t *task.Task) error {
 	// Save initial state
 	if err := r.taskStore.Save(t); err != nil {
 		return err
 	}
 
 	// Create worktree
-	if err := r.createWorktree(t); err != nil {
+	if err := r.createWorktree(repoPath, t); err != nil {
 		t.SetError(err)
 		r.taskStore.Save(t)
 		return err
@@ -99,13 +103,17 @@ func (r *Runner) Execute(t *task.Task) error {
 	return nil
 }
 
-func (r *Runner) createWorktree(t *task.Task) error {
+func (r *Runner) createWorktree(repoPath string, t *task.Task) error {
 	t.TransitionTo(task.StateSetup)
 	r.taskStore.Save(t)
 
+	if !isGitRepo(repoPath) {
+		return fmt.Errorf("not a git repository: %s", repoPath)
+	}
+
 	// Use wtx to create worktree and return machine-readable path.
 	cmd := exec.Command("wtx", "add", "--json", t.Branch)
-	cmd.Dir = r.repoPath
+	cmd.Dir = repoPath
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {

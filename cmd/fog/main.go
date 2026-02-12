@@ -19,6 +19,7 @@ var version = "dev"
 
 var (
 	flagBranch      string
+	flagRepo        string
 	flagTool        string
 	flagPrompt      string
 	flagCommit      bool
@@ -98,6 +99,7 @@ var versionCmd = &cobra.Command{
 func init() {
 	// run command flags
 	runCmd.Flags().StringVar(&flagBranch, "branch", "", "Branch name (required)")
+	runCmd.Flags().StringVar(&flagRepo, "repo", "", "Managed repo alias from fog registry")
 	runCmd.Flags().StringVar(&flagTool, "tool", "", "AI tool to use (cursor, claude, aider)")
 	runCmd.Flags().StringVar(&flagPrompt, "prompt", "", "Task prompt (required)")
 	runCmd.Flags().BoolVar(&flagCommit, "commit", false, "Commit changes after AI completes")
@@ -145,8 +147,23 @@ func runTask() error {
 		return err
 	}
 
+	repoPath := cwd
+	if flagRepo != "" {
+		repo, found, err := stateStore.GetRepoByName(flagRepo)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return fmt.Errorf("managed repo %q not found; run `fog repos list`", flagRepo)
+		}
+		if repo.BaseWorktreePath == "" {
+			return fmt.Errorf("managed repo %q has no base worktree path", flagRepo)
+		}
+		repoPath = repo.BaseWorktreePath
+	}
+
 	// Create runner
-	r, err := runner.New(cwd, configDir)
+	r, err := runner.New(repoPath, configDir)
 	if err != nil {
 		return err
 	}

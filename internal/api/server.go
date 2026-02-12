@@ -68,6 +68,7 @@ func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 // CreateTaskRequest represents a task creation request
 type CreateTaskRequest struct {
 	Branch  string       `json:"branch"`
+	Repo    string       `json:"repo"`
 	Prompt  string       `json:"prompt"`
 	AITool  string       `json:"ai_tool"`
 	Options task.Options `json:"options"`
@@ -87,8 +88,22 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate request
-	if req.Branch == "" || req.Prompt == "" {
-		http.Error(w, "branch and prompt are required", http.StatusBadRequest)
+	if req.Branch == "" || req.Prompt == "" || req.Repo == "" {
+		http.Error(w, "repo, branch, and prompt are required", http.StatusBadRequest)
+		return
+	}
+
+	repo, found, err := s.stateStore.GetRepoByName(req.Repo)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !found {
+		http.Error(w, fmt.Sprintf("unknown repo: %s", req.Repo), http.StatusBadRequest)
+		return
+	}
+	if repo.BaseWorktreePath == "" {
+		http.Error(w, fmt.Sprintf("repo %s has no base worktree path", req.Repo), http.StatusBadRequest)
 		return
 	}
 
@@ -112,7 +127,7 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 	// Execute asynchronously if requested
 	if req.Options.Async {
-		go s.runner.Execute(t)
+		go s.runner.ExecuteInRepo(repo.BaseWorktreePath, t)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
@@ -124,7 +139,7 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Execute synchronously
-	if err := s.runner.Execute(t); err != nil {
+	if err := s.runner.ExecuteInRepo(repo.BaseWorktreePath, t); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

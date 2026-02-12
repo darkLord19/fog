@@ -20,3 +20,16 @@ func TestParseWtxAddOutputMissingPath(t *testing.T) {
 		t.Fatal("expected error when path is missing")
 	}
 }
+
+func TestNewAllowsNonRepoPath(t *testing.T) {
+	storeDir := t.TempDir()
+	nonRepo := t.TempDir()
+
+	r, err := New(nonRepo, storeDir)
+	if err != nil {
+		t.Fatalf("New returned error for non-repo path: %v", err)
+	}
+	if r == nil {
+		t.Fatal("expected runner instance")
+	}
+}

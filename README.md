@@ -72,6 +72,7 @@ fog setup
 
 # 1. Simple AI task
 fog run \
+  --repo acme-api \
   --branch feature-otp \
   --tool claude \
   --prompt "Add OTP login" \
@@ -80,6 +81,7 @@ fog run \
 
 # 2. With validation
 fog run \
+  --repo acme-api \
   --branch fix-bug \
   --tool aider \
   --prompt "Fix auth bug" \
@@ -189,7 +191,7 @@ fog list  # See all active tasks
 ```bash
 # Via API
 curl -X POST http://localhost:8080/api/tasks/create \
-  -d '{"branch":"fix","prompt":"Fix bug","ai_tool":"claude"}'
+  -d '{"repo":"acme-api","branch":"fix","prompt":"Fix bug","ai_tool":"claude"}'
 # ai_tool can be omitted only when default_tool is configured
 ```
 
@@ -221,6 +223,7 @@ GET /api/tasks/{id}
 POST /api/tasks/create
 {
   "branch": "feature-name",
+  "repo": "acme-api",
   "prompt": "Task description",
   "ai_tool": "claude",
   "options": {

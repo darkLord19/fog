@@ -117,6 +117,7 @@ fog setup
 
 ```bash
 fog run \
+  --repo acme-api \
   --branch feature-auth \
   --tool claude \
   --prompt "Implement JWT authentication" \
@@ -146,6 +147,7 @@ curl http://localhost:8080/api/tasks
 curl -X POST http://localhost:8080/api/tasks/create \
   -H "Content-Type: application/json" \
   -d '{
+    "repo": "acme-api",
     "branch": "feature-api",
     "prompt": "Add REST API for users",
     "ai_tool": "claude",
@@ -272,6 +274,7 @@ curl http://localhost:8080/api/tasks
 curl -X POST http://localhost:8080/api/tasks/create \
   -H "Content-Type: application/json" \
   -d '{
+    "repo": "acme-api",
     "branch": "feature-name",
     "prompt": "Your task description",
     "ai_tool": "claude",
@@ -295,6 +298,7 @@ curl http://localhost:8080/api/tasks/<task-id>
 {
   "id": "uuid",
   "state": "COMPLETED",
+  "repo": "acme-api",
   "branch": "feature-auth",
   "prompt": "Implement authentication",
   "ai_tool": "claude",
@@ -366,6 +370,7 @@ Uses GitHub CLI (`gh`):
 
 ```bash
 fog run \
+  --repo acme-api \
   --branch feature-user-api \
   --tool claude \
   --prompt "Add REST API endpoints for user CRUD" \
@@ -377,6 +382,7 @@ fog run \
 
 ```bash
 fog run \
+  --repo acme-api \
   --branch fix-auth-bug \
   --tool aider \
   --prompt "Fix JWT token expiration bug" \
@@ -389,6 +395,7 @@ fog run \
 
 ```bash
 fog run \
+  --repo acme-api \
   --branch refactor-db \
   --tool claude \
   --prompt "Migrate database from MongoDB to PostgreSQL" \
@@ -405,6 +412,7 @@ fog status <task-id>
 curl -X POST http://localhost:8080/api/tasks/create \
   -H "Content-Type: application/json" \
   -d '{
+    "repo": "acme-api",
     "branch": "feature-notifications",
     "prompt": "Add email notification system",
     "ai_tool": "claude",

@@ -165,6 +165,44 @@ func TestUpsertAndListRepos(t *testing.T) {
 	}
 }
 
+func TestGetRepoByName(t *testing.T) {
+	store := newTestStore(t)
+	defer func() { _ = store.Close() }()
+
+	_, err := store.UpsertRepo(Repo{
+		Name:             "acme-api",
+		URL:              "https://github.com/acme/api.git",
+		Host:             "github.com",
+		Owner:            "acme",
+		Repo:             "api",
+		BarePath:         "/tmp/acme-api/repo.git",
+		BaseWorktreePath: "/tmp/acme-api/base",
+		DefaultBranch:    "main",
+	})
+	if err != nil {
+		t.Fatalf("upsert repo failed: %v", err)
+	}
+
+	repo, found, err := store.GetRepoByName("acme-api")
+	if err != nil {
+		t.Fatalf("GetRepoByName failed: %v", err)
+	}
+	if !found {
+		t.Fatal("expected repo to exist")
+	}
+	if repo.Repo != "api" {
+		t.Fatalf("unexpected repo payload: %+v", repo)
+	}
+
+	_, found, err = store.GetRepoByName("missing")
+	if err != nil {
+		t.Fatalf("GetRepoByName missing failed: %v", err)
+	}
+	if found {
+		t.Fatal("expected missing repo to not be found")
+	}
+}
+
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
 	store, err := NewStore(t.TempDir())
