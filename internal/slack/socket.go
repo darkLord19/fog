@@ -19,29 +19,33 @@ import (
 )
 
 const (
-	slackConnectionsOpenURL = "https://slack.com/api/apps.connections.open"
-	slackPostMessageURL     = "https://slack.com/api/chat.postMessage"
+	defaultConnectionsOpenURL = "https://slack.com/api/apps.connections.open"
+	defaultPostMessageURL     = "https://slack.com/api/chat.postMessage"
 )
 
 var mentionPattern = regexp.MustCompile(`<@[^>]+>`)
 
 // SocketMode handles Slack Socket Mode events.
 type SocketMode struct {
-	handler    *Handler
-	appToken   string
-	botToken   string
-	httpClient *http.Client
-	dialer     *websocket.Dialer
+	handler            *Handler
+	appToken           string
+	botToken           string
+	httpClient         *http.Client
+	dialer             *websocket.Dialer
+	connectionsOpenURL string
+	postMessageURL     string
 }
 
 // NewSocketMode creates a new socket mode server.
 func NewSocketMode(r *runner.Runner, stateStore *state.Store, appToken, botToken string) *SocketMode {
 	return &SocketMode{
-		handler:    New(r, stateStore, ""),
-		appToken:   strings.TrimSpace(appToken),
-		botToken:   strings.TrimSpace(botToken),
-		httpClient: &http.Client{Timeout: 20 * time.Second},
-		dialer:     websocket.DefaultDialer,
+		handler:            New(r, stateStore, ""),
+		appToken:           strings.TrimSpace(appToken),
+		botToken:           strings.TrimSpace(botToken),
+		httpClient:         &http.Client{Timeout: 20 * time.Second},
+		dialer:             websocket.DefaultDialer,
+		connectionsOpenURL: defaultConnectionsOpenURL,
+		postMessageURL:     defaultPostMessageURL,
 	}
 }
 
@@ -119,7 +123,7 @@ func (s *SocketMode) runOnce(ctx context.Context) error {
 }
 
 func (s *SocketMode) openSocketURL(ctx context.Context) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, slackConnectionsOpenURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.connectionsOpenURL, nil)
 	if err != nil {
 		return "", err
 	}
@@ -346,7 +350,7 @@ func (s *SocketMode) postMessage(channelID, threadTS, text string) (string, erro
 		return "", err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, slackPostMessageURL, bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, s.postMessageURL, bytes.NewReader(body))
 	if err != nil {
 		return "", err
 	}

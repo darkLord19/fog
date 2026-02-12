@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Homebrew formula generator** - `scripts/release/generate-homebrew-formula.sh` generates versioned `wtx.rb` from release checksums
 - **Release workflow wiring** - Tag push (`v*`) now publishes artifacts and generated formula via GitHub Actions
 - **Linux installer (hardened)** - `scripts/install-linux.sh` with checksum verification and version pin support
+- **Socket mode integration tests** - Added mocked Slack endpoint tests for socket envelope handling
 
 ### Added - wtx Enhancements
 - `wtx status <n>` - Detailed worktree status
