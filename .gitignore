@@ -2,6 +2,7 @@
 /bin/
 /dist/
 /wtx
+/fogapp
 *.exe
 
 # Go
@@ -32,3 +33,7 @@ coverage.html
 # Tmp
 tmp/
 temp/
+
+# Wails desktop build artifacts
+/cmd/fogapp/build/
+/cmd/fogapp/frontend/wailsjs/
