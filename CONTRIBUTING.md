@@ -15,7 +15,7 @@ Thank you for your interest in contributing to wtx!
 1. Fork the repository
 2. Clone your fork:
    ```bash
-   git clone https://github.com/yourusername/wtx.git
+   git clone https://github.com/darkLord19/wtx.git
    cd wtx
    ```
 

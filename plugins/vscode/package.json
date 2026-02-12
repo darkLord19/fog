@@ -3,10 +3,10 @@
   "displayName": "wtx - Worktree Manager",
   "description": "Fast Git worktree switcher for VS Code",
   "version": "0.1.0",
-  "publisher": "yourusername",
+  "publisher": "darkLord19",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/wtx"
+    "url": "https://github.com/darkLord19/wtx"
   },
   "engines": {
     "vscode": "^1.80.0"

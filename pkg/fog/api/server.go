@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/yourusername/wtx/pkg/fog/runner"
-	"github.com/yourusername/wtx/pkg/fog/task"
+	"github.com/darkLord19/wtx/pkg/fog/runner"
+	"github.com/darkLord19/wtx/pkg/fog/task"
 )
 
 // Server provides HTTP API for Fog

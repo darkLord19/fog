@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/yourusername/wtx/internal/config"
-	"github.com/yourusername/wtx/internal/editor"
-	"github.com/yourusername/wtx/internal/git"
-	"github.com/yourusername/wtx/internal/metadata"
-	"github.com/yourusername/wtx/internal/tui"
-	"github.com/yourusername/wtx/internal/util"
+	"github.com/darkLord19/wtx/internal/config"
+	"github.com/darkLord19/wtx/internal/editor"
+	"github.com/darkLord19/wtx/internal/git"
+	"github.com/darkLord19/wtx/internal/metadata"
+	"github.com/darkLord19/wtx/internal/tui"
+	"github.com/darkLord19/wtx/internal/util"
 )
 
 var version = "dev"

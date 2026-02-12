@@ -74,9 +74,9 @@ fogd --enable-slack \            # With Slack
 make install
 
 # Or install individually
-go install github.com/yourusername/wtx/cmd/wtx@latest
-go install github.com/yourusername/wtx/cmd/fog@latest
-go install github.com/yourusername/wtx/cmd/fogd@latest
+go install github.com/darkLord19/wtx/cmd/wtx@latest
+go install github.com/darkLord19/wtx/cmd/fog@latest
+go install github.com/darkLord19/wtx/cmd/fogd@latest
 ```
 
 ## Quick Start

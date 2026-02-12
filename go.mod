@@ -1,4 +1,4 @@
-module github.com/yourusername/wtx
+module github.com/darkLord19/wtx
 
 go 1.21
 

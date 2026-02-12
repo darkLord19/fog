@@ -150,7 +150,7 @@ which wtx
 # Should output: /path/to/wtx
 
 # If not found, install:
-go install github.com/yourusername/wtx/cmd/wtx@latest
+go install github.com/darkLord19/wtx/cmd/wtx@latest
 ```
 
 ### Server not starting

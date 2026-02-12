@@ -9,9 +9,9 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
-	"github.com/yourusername/wtx/pkg/fog/api"
-	"github.com/yourusername/wtx/pkg/fog/runner"
-	"github.com/yourusername/wtx/pkg/fog/slack"
+	"github.com/darkLord19/wtx/pkg/fog/api"
+	"github.com/darkLord19/wtx/pkg/fog/runner"
+	"github.com/darkLord19/wtx/pkg/fog/slack"
 )
 
 var version = "dev"

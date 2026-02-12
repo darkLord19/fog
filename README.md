@@ -60,7 +60,7 @@ fogd --port 8080 --enable-slack
 make install
 
 # Or via Go
-go install github.com/yourusername/wtx/cmd/{wtx,fog,fogd}@latest
+go install github.com/darkLord19/wtx/cmd/{wtx,fog,fogd}@latest
 ```
 
 ### Basic Usage

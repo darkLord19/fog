@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yourusername/wtx/pkg/fog/ai"
-	"github.com/yourusername/wtx/pkg/fog/task"
+	"github.com/darkLord19/wtx/pkg/fog/ai"
+	"github.com/darkLord19/wtx/pkg/fog/task"
 )
 
 // Runner orchestrates AI task execution

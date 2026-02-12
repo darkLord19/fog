@@ -8,10 +8,10 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/yourusername/wtx/internal/config"
-	"github.com/yourusername/wtx/internal/editor"
-	"github.com/yourusername/wtx/internal/git"
-	"github.com/yourusername/wtx/internal/metadata"
+	"github.com/darkLord19/wtx/internal/config"
+	"github.com/darkLord19/wtx/internal/editor"
+	"github.com/darkLord19/wtx/internal/git"
+	"github.com/darkLord19/wtx/internal/metadata"
 )
 
 // Model represents the TUI state
