@@ -31,6 +31,9 @@ This document reflects the currently implemented product surface in this reposit
   - create session (one branch/worktree)
   - follow-up run execution on same worktree
   - run event logging in SQLite
+  - auto-commit with AI-generated commit message (fallback to deterministic message)
+  - push only when auto-PR is enabled (or session already has PR)
+  - draft PR is created once per session, follow-ups update same branch
 
 ### `fogd` (control plane)
 - HTTP API:

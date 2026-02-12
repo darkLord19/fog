@@ -158,6 +158,11 @@ curl -X POST http://localhost:8080/api/sessions/<session_id>/runs \
 curl http://localhost:8080/api/sessions/<session_id>/runs/<run_id>/events
 ```
 
+Expected checks:
+- initial session create returns `session_id` and `run_id`
+- follow-up call returns a new `run_id` for the same `session_id`
+- run events include setup/ai/commit phases and terminal state
+
 ## 6. Web UI test
 
 ```bash
