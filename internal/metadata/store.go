@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -37,25 +39,46 @@ type WorktreeMetadata struct {
 
 // New creates a new metadata store
 func New(repoPath string) (*Store, error) {
-	// Metadata stored in .git/wtx/metadata.json
-	gitDir := filepath.Join(repoPath, ".git")
+	// Metadata is stored in the git common dir so all worktrees share one store.
+	gitDir, err := resolveGitCommonDir(repoPath)
+	if err != nil {
+		return nil, err
+	}
 	wtxDir := filepath.Join(gitDir, "wtx")
-	
+
 	// Create wtx directory if it doesn't exist
 	if err := os.MkdirAll(wtxDir, 0755); err != nil {
 		return nil, fmt.Errorf("create wtx dir: %w", err)
 	}
-	
+
 	metaPath := filepath.Join(wtxDir, "metadata.json")
-	
+
 	return &Store{path: metaPath}, nil
+}
+
+func resolveGitCommonDir(repoPath string) (string, error) {
+	cmd := exec.Command("git", "-C", repoPath, "rev-parse", "--git-common-dir")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("resolve git common dir: %w\n%s", err, strings.TrimSpace(string(output)))
+	}
+
+	gitDir := strings.TrimSpace(string(output))
+	if gitDir == "" {
+		return "", fmt.Errorf("resolve git common dir: empty output")
+	}
+
+	if !filepath.IsAbs(gitDir) {
+		gitDir = filepath.Join(repoPath, gitDir)
+	}
+	return filepath.Clean(gitDir), nil
 }
 
 // Get retrieves all metadata
 func (s *Store) Get() (*Metadata, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	// If file doesn't exist, return empty metadata
 	if _, err := os.Stat(s.path); os.IsNotExist(err) {
 		return &Metadata{
@@ -63,22 +86,22 @@ func (s *Store) Get() (*Metadata, error) {
 			Version:   "1.0",
 		}, nil
 	}
-	
+
 	data, err := os.ReadFile(s.path)
 	if err != nil {
 		return nil, fmt.Errorf("read metadata: %w", err)
 	}
-	
+
 	var meta Metadata
 	if err := json.Unmarshal(data, &meta); err != nil {
 		return nil, fmt.Errorf("parse metadata: %w", err)
 	}
-	
+
 	// Ensure map is initialized
 	if meta.Worktrees == nil {
 		meta.Worktrees = make(map[string]*WorktreeMetadata)
 	}
-	
+
 	return &meta, nil
 }
 
@@ -86,16 +109,16 @@ func (s *Store) Get() (*Metadata, error) {
 func (s *Store) Update(fn func(*Metadata) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	meta, err := s.get()
 	if err != nil {
 		return err
 	}
-	
+
 	if err := fn(meta); err != nil {
 		return err
 	}
-	
+
 	return s.save(meta)
 }
 
@@ -107,21 +130,21 @@ func (s *Store) get() (*Metadata, error) {
 			Version:   "1.0",
 		}, nil
 	}
-	
+
 	data, err := os.ReadFile(s.path)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var meta Metadata
 	if err := json.Unmarshal(data, &meta); err != nil {
 		return nil, err
 	}
-	
+
 	if meta.Worktrees == nil {
 		meta.Worktrees = make(map[string]*WorktreeMetadata)
 	}
-	
+
 	return &meta, nil
 }
 
@@ -131,19 +154,19 @@ func (s *Store) save(meta *Metadata) error {
 	if err != nil {
 		return fmt.Errorf("marshal metadata: %w", err)
 	}
-	
+
 	// Write to temp file first
 	tmpPath := s.path + ".tmp"
 	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
 		return fmt.Errorf("write temp file: %w", err)
 	}
-	
+
 	// Atomic rename
 	if err := os.Rename(tmpPath, s.path); err != nil {
 		os.Remove(tmpPath)
 		return fmt.Errorf("rename temp file: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -153,12 +176,12 @@ func (s *Store) GetWorktree(name string) (*WorktreeMetadata, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	wt, ok := meta.Worktrees[name]
 	if !ok {
 		return nil, nil
 	}
-	
+
 	return wt, nil
 }
 

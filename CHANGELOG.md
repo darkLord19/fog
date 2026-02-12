@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Validation command support
 - Enhanced metadata tracking (setup status, validation)
 - Command execution utility
+- Metadata storage now resolves Git common dir for worktree compatibility
 
 ### Added - Documentation
 - Complete Fog guide (docs/FOG.md)
