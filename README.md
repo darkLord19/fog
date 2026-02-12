@@ -1,222 +1,288 @@
-# wtx - Git Worktree Manager
+# Fog - Local AI Agent Orchestration
 
-> "Cmd+Tab for your Git branches"
+> "Turn your local machine into cloud agents"
 
-Fast, keyboard-driven workspace switcher for Git worktrees.
+**Domain:** getfog.dev
 
-## Features
+Fog orchestrates AI coding tasks using existing AI tools in isolated Git worktrees. Safe, local, and async.
 
-- 🚀 **Instant switching** - Switch between worktrees in <2 seconds
-- 🎨 **Beautiful TUI** - Interactive fuzzy finder with status indicators  
-- 🔧 **Multi-editor** - VS Code, Cursor, Neovim, Claude Code, Vim support
-- 🌐 **Dev server tracking** - Manage ports and processes per worktree
-- 🔒 **Safe by default** - Never lose uncommitted work
-- ⌨️ **Keyboard-first** - Everything accessible without mouse
-- 🤖 **Claude-friendly** - JSON output for automation and AI assistants
+## 🎯 What is Fog?
 
-## Installation
+Fog is a **local-first developer system** that:
+- Runs AI coding tasks in **isolated worktrees**
+- Supports **Cursor, Claude Code, Aider**
+- Provides **CLI, HTTP API, and Slack** interfaces
+- Creates **clean PRs** automatically
+- Executes tasks **asynchronously**
 
-### Go Install
+## 🏗️ System Components
+
+### 1. wtx - Worktree CLI
+Git worktree manager (zero AI, zero networking)
+
 ```bash
-go install github.com/yourusername/wtx/cmd/wtx@latest
+wtx                    # Interactive TUI
+wtx list              # List worktrees
+wtx add <n>          # Create worktree  
+wtx open <n>         # Open in editor
+wtx status <n>       # Detailed status
+wtx config           # View configuration
 ```
 
-### From Source
+### 2. fog - AI Orchestration CLI
+Execute AI tasks locally
+
 ```bash
-git clone https://github.com/yourusername/wtx
-cd wtx
+fog run \
+  --branch feature-auth \
+  --tool claude \
+  --prompt "Add JWT authentication" \
+  --commit \
+  --pr
+
+fog list              # List tasks
+fog status <id>       # Task status
+```
+
+### 3. fogd - Control Plane
+Daemon with HTTP API + Slack
+
+```bash
+fogd --port 8080 --enable-slack
+```
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+# Install all components
 make install
+
+# Or via Go
+go install github.com/yourusername/wtx/cmd/{wtx,fog,fogd}@latest
 ```
 
-### Homebrew (coming soon)
-```bash
-brew install yourusername/tap/wtx
-```
-
-## Quick Start
+### Basic Usage
 
 ```bash
-# Interactive switcher (default)
-wtx
+# 1. Simple AI task
+fog run \
+  --branch feature-otp \
+  --tool claude \
+  --prompt "Add OTP login" \
+  --commit
 
-# List all worktrees
-wtx list
+# 2. With validation
+fog run \
+  --branch fix-bug \
+  --tool aider \
+  --prompt "Fix auth bug" \
+  --setup-cmd "npm ci" \
+  --validate-cmd "npm test" \
+  --commit \
+  --pr
 
-# Create new worktree
-wtx add feature-auth
-
-# Open worktree in editor
-wtx open feature-auth
-
-# Remove worktree
-wtx rm old-feature
+# 3. Start daemon
+fogd --port 8080
 ```
 
-## Interactive Mode
-
-Just run `wtx` to launch the TUI:
+### Slack Usage
 
 ```
-┌─ Worktree Manager ─────────────────────┐
-│ > main                                  │
-│   auth-refactor  ● dirty • ↑2          │
-│   bugfix-login   ✓ clean               │
-│   api-v2         ✓ clean               │
-└─────────────────────────────────────────┘
-
-Press Enter to open | q to quit | / to search
+/fog create branch feature-search and add full-text search
 ```
 
-### Keyboard Shortcuts
-
-- `Enter` - Open selected worktree in editor
-- `/` or `Ctrl+F` - Start fuzzy search  
-- `↑/↓` or `j/k` - Navigate
-- `r` - Refresh list
-- `q` or `Ctrl+C` - Quit
-
-## CLI Commands
-
-### `wtx list`
-List all worktrees with status
-
-```bash
-# Human-readable
-wtx list
-
-# JSON output (for scripts/AI)
-wtx list --json
+→ Response:
+```
+✅ Task completed: feature-search
+Duration: 2m 30s
+[Open Branch] [Create PR]
 ```
 
-### `wtx add <name> [branch]`
-Create a new worktree
+## ✨ Features
 
-```bash
-# Create from existing branch
-wtx add feature-auth
+### wtx (Worktree Management)
+- 🎨 **Interactive TUI** - Fuzzy search and keyboard navigation
+- 🔧 **Multi-editor** - VS Code, Cursor, Neovim, Claude Code
+- ⚙️ **Setup hooks** - Auto-run `npm install` after creation
+- 📊 **Status tracking** - Dirty, ahead/behind, stash detection
+- 🔒 **Safe operations** - Never lose uncommitted work
 
-# Create new branch
-wtx add new-feature main
+### fog (AI Orchestration)
+- 🤖 **Multi-AI** - Cursor, Claude Code, Aider support
+- 🌳 **Isolation** - Each task in separate worktree
+- ✅ **Validation** - Run tests after AI
+- 📝 **Auto-commit** - Commit changes automatically
+- 🔀 **Auto-PR** - Create pull requests via `gh`
+- 📊 **Lifecycle tracking** - Full state machine
 
-# Worktree created at ../worktrees/feature-auth by default
-```
+### fogd (Control Plane)
+- 🌐 **HTTP API** - RESTful task management
+- 💬 **Slack** - Slash command integration
+- 🔄 **Async** - Fire-and-forget execution
+- 📢 **Notifications** - Completion alerts
+- 🔌 **Extensible** - Easy to add integrations
 
-### `wtx open <name>`
-Open worktree in your editor
+## 📚 Documentation
 
-```bash
-# Use configured editor
-wtx open feature-auth
+- **[Complete Fog Guide](docs/FOG.md)** - Full documentation
+- **[Project Summary](PROJECT_SUMMARY.md)** - Implementation details
+- **[Contributing](CONTRIBUTING.md)** - Development guide
+- **[Changelog](CHANGELOG.md)** - Version history
 
-# Override editor
-wtx open feature-auth --editor vscode
-```
+## 🛠️ Configuration
 
-### `wtx rm <name>`
-Remove a worktree safely
-
-```bash
-# Interactive safety check for dirty worktrees
-wtx rm old-feature
-
-# Force remove
-wtx rm old-feature --force
-```
-
-## Configuration
-
-Config stored in `~/.config/wtx/config.json`
+### wtx (~/.config/wtx/config.json)
 
 ```json
 {
   "editor": "cursor",
   "reuse_window": true,
   "worktree_dir": "../worktrees",
-  "auto_start_dev": false,
+  "setup_cmd": "npm install",
+  "validate_cmd": "npm test",
   "default_branch": "main"
 }
 ```
 
-### Editor Support
+## 🎯 Use Cases
 
-Supported editors (auto-detected):
-- VS Code (`code`)
-- Cursor (`cursor`)  
-- Neovim (`nvim`)
-- Claude Code (`claude`)
-- Vim (`vim`)
-
-Set preferred editor:
+### Solo Developer
 ```bash
-# Via config
-editor="vscode"
-
-# Via environment variable
-export EDITOR=nvim
-
-# Via flag
-wtx open main --editor cursor
+# Work on multiple features in parallel
+fog run --branch feature-a --tool claude --prompt "..."
+fog run --branch feature-b --tool aider --prompt "..."
+fog list  # See all active tasks
 ```
 
-## Metadata Storage
-
-Worktree metadata stored in `.git/wtx/metadata.json` (not cleaned by git)
-
-Tracks:
-- Creation timestamp
-- Last opened timestamp  
-- Dev command
-- Ports in use
-- Notes
-
-## Use with Claude (AI)
-
-wtx is designed to work seamlessly with Claude via computer use:
-
+### Team Collaboration
 ```
-User: "Switch to my auth feature branch"
-Claude: [bash: wtx open auth-refactor]
+# Slack: Start task
+/fog create branch feature-api and add REST endpoints
 
-User: "What worktrees do I have?"
-Claude: [bash: wtx list --json]
+# Get notification when done
+✅ Task completed
+[Open Branch] [Create PR]
 ```
 
-### JSON Output Format
+### CI/CD Integration
+```bash
+# Via API
+curl -X POST http://localhost:8080/api/tasks/create \
+  -d '{"branch":"fix","prompt":"Fix bug","ai_tool":"claude"}'
+```
+
+## 🔧 AI Tool Support
+
+| Tool | Status | CLI | Notes |
+|------|--------|-----|-------|
+| Claude Code | ✅ | Yes | Full support |
+| Aider | ✅ | Yes | Full support |
+| Cursor | ⚠️ | Partial | Opens project only |
+
+Adding new tools: Implement `ai.Tool` interface in `pkg/fog/ai/`
+
+## 🌐 HTTP API
+
+### Endpoints
 
 ```bash
-$ wtx list --json
-[
-  {
-    "name": "main",
-    "path": "/Users/dev/project",
-    "branch": "main",
-    "head": "abc123",
-    "locked": false,
-    "prunable": false
+# Health check
+GET /health
+
+# List tasks
+GET /api/tasks
+
+# Get task
+GET /api/tasks/{id}
+
+# Create task
+POST /api/tasks/create
+{
+  "branch": "feature-name",
+  "prompt": "Task description",
+  "ai_tool": "claude",
+  "options": {
+    "commit": true,
+    "async": true
   }
-]
+}
 ```
 
-## Editor Extensions
+## 💬 Slack Setup
 
-### VS Code / Cursor
+1. Create app at https://api.slack.com/apps
+2. Add slash command `/fog`
+3. Point to `https://your-tunnel.ngrok.io/slack/command`
+4. Start fogd:
+   ```bash
+   ngrok http 8080
+   fogd --port 8080 --enable-slack --slack-secret <secret>
+   ```
 
-Install the wtx extension from the marketplace:
+## 🏗️ Architecture
+
+```
+┌──────────────────────────────────┐
+│       User Interfaces            │
+│  CLI │ Slack │ API │ VS Code     │
+└──────────┬───────────────────────┘
+           │
+    ┌──────▼──────┐
+    │    fogd     │
+    │(HTTP + Slack)│
+    └──────┬──────┘
+           │
+    ┌──────▼──────┐
+    │ Fog Runner  │
+    │(Orchestrate)│
+    └──────┬──────┘
+           │
+    ┌──────▼──────┐
+    │ wtx + AI    │
+    │  (Execute)  │
+    └─────────────┘
+```
+
+## 🔄 Task Lifecycle
+
+```
+CREATED
+  ↓
+SETUP (run setup_cmd)
+  ↓
+AI_RUNNING (invoke AI tool)
+  ↓
+VALIDATING (run validate_cmd)
+  ↓
+COMMITTED (git commit)
+  ↓
+PR_CREATED (gh pr create)
+  ↓
+COMPLETED | FAILED
+```
+
+## 🛡️ Safety Features
+
+- ✅ Worktree isolation - Never touch main
+- ✅ Dirty detection - Warns before deleting
+- ✅ Atomic operations - No partial writes
+- ✅ No force-push - Append-only
+- ✅ Failed preservation - Keep for debugging
+
+## 🔌 Extensions
+
+### VS Code
+Tree view + quick switcher (Cmd+Shift+W)
 
 ```bash
-code --install-extension wtx
+cd plugins/vscode
+npm install && npm run package
+code --install-extension *.vsix
 ```
 
-Features:
-- Tree view of all worktrees
-- Quick switcher (Cmd+Shift+W)
-- Create/delete from sidebar
-- Status indicators
-
-### Claude Code (MCP Server)
-
-Add to your Claude Code config:
-
+### Claude Code (MCP)
 ```json
 {
   "mcpServers": {
@@ -228,67 +294,45 @@ Add to your Claude Code config:
 }
 ```
 
-Available tools:
-- `wtx_list_worktrees` - List all worktrees
-- `wtx_switch_worktree` - Switch to a worktree
-- `wtx_create_worktree` - Create new worktree
+## 🚧 Roadmap
 
-## Development
+- [x] wtx - Worktree management
+- [x] fog - AI orchestration  
+- [x] fogd - HTTP API
+- [x] Slack integration
+- [x] VS Code extension
+- [x] Claude Code MCP
+- [ ] Web GUI
+- [ ] PR comment → re-run
+- [ ] Docker isolation
+- [ ] Team features
+
+## 💻 Development
 
 ```bash
-# Build
-make build
+# Build all
+make all
 
-# Run tests
+# Build individually
+make wtx
+make fog
+make fogd
+
+# Test
 make test
 
-# Install locally
+# Install
 make install
-
-# Run locally
-make dev
 ```
 
-### Project Structure
+## 📖 Examples
 
-```
-wtx/
-├── cmd/wtx/          # CLI entry point
-├── internal/
-│   ├── git/          # Git operations
-│   ├── tui/          # Interactive UI
-│   ├── editor/       # Editor adapters
-│   ├── metadata/     # Data storage
-│   ├── config/       # Configuration
-│   ├── process/      # Process management
-│   └── util/         # Utilities
-└── plugins/
-    ├── vscode/       # VS Code extension
-    └── claude-code/  # Claude Code MCP server
-```
+See [docs/FOG.md](docs/FOG.md) for comprehensive examples.
 
-## Roadmap
-
-- [x] Core CLI (list, add, remove, open)
-- [x] Interactive TUI
-- [x] Multi-editor support
-- [x] JSON output for automation
-- [ ] Dev server management
-- [ ] Port tracking
-- [ ] Templates
-- [ ] `wtx doctor` health checks
-- [ ] Shell completions
-- [ ] VS Code extension
-- [ ] Claude Code MCP server
-
-## Contributing
-
-Contributions welcome! Please open an issue or PR.
-
-## License
+## 📜 License
 
 MIT
 
 ---
 
-**Made with ❤️ for developers who love worktrees**
+**Fog** - Turn your laptop into a personal cloud for AI agents
