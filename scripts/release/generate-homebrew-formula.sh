@@ -9,7 +9,7 @@ Usage:
 
 Examples:
   scripts/release/generate-homebrew-formula.sh v0.2.0 dist/wtx_0.2.0_checksums.txt
-  scripts/release/generate-homebrew-formula.sh v0.2.0 dist/wtx_0.2.0_checksums.txt darkLord19/wtx
+  scripts/release/generate-homebrew-formula.sh v0.2.0 dist/wtx_0.2.0_checksums.txt darkLord19/foglet
 EOF
 }
 
@@ -20,7 +20,7 @@ fi
 
 VERSION_TAG="$1"
 CHECKSUMS_FILE="$2"
-GITHUB_REPO="${3:-darkLord19/wtx}"
+GITHUB_REPO="${3:-darkLord19/foglet}"
 VERSION="${VERSION_TAG#v}"
 
 if [[ ! -f "${CHECKSUMS_FILE}" ]]; then
@@ -56,7 +56,7 @@ class Wtx < Formula
   desc "Turn your local machine into cloud agents"
   homepage "https://github.com/${GITHUB_REPO}"
   version "${VERSION}"
-  license "MIT"
+  license "AGPL-3.0-or-later"
 
   on_macos do
     if Hardware::CPU.arm?

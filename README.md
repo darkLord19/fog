@@ -11,7 +11,7 @@ Fog orchestrates AI coding tasks using existing AI tools in isolated Git worktre
 Fog is a **local-first developer system** that:
 - Runs AI coding tasks in **isolated worktrees**
 - Supports **Cursor, Claude Code, Aider**
-- Provides **CLI, HTTP API, and Slack** interfaces
+- Provides **CLI, Desktop App, HTTP API, and Slack** interfaces
 - Creates **clean PRs** automatically
 - Executes tasks **asynchronously**
 
@@ -64,7 +64,7 @@ fogd --port 8080 --enable-slack --slack-mode socket \
 make install
 
 # Or via Go
-go install github.com/darkLord19/wtx/cmd/{wtx,fog,fogd,fogcloud}@latest
+go install github.com/darkLord19/foglet/cmd/{wtx,fog,fogd,fogcloud}@latest
 
 # Linux installer (release artifacts + checksum verify)
 scripts/install-linux.sh
@@ -109,12 +109,8 @@ fog run \
 # 3. Start daemon
 fogd --port 8080
 
-# 3b. Open UI (starts fogd automatically if needed)
-fog ui
-# If PAT/default tool are missing, UI shows onboarding first.
-
-# 3c. Desktop UI preview (Wails)
-# requires Wails CLI installed
+# 3b. Desktop app (bundles fogd; starts local server if needed)
+# requires Wails CLI installed for dev mode
 make fogapp-dev
 # or launch installed desktop binary wrapper
 fog app
@@ -163,8 +159,8 @@ Duration: 2m 30s
 ### fogd (Control Plane)
 - 🌐 **HTTP API** - RESTful task management
 - 💬 **Slack** - HTTP slash commands + Socket Mode (`@fog`) with thread follow-ups
-- 🖥️ **Built-in Web UI** - Served by fogd at `/`; `fog ui` auto-starts fogd if needed
-- 🧩 **Wails Desktop Preview** - `cmd/fogapp` desktop shell over local fogd APIs
+- 🧩 **Desktop-first UI** - `fogapp` (Wails) is the primary local UI
+- 🔗 **Embedded daemon** - desktop app starts bundled fogd API server when needed
 - 🔄 **Async** - Fire-and-forget execution
 - 📢 **Notifications** - Completion alerts
 - 🔌 **Extensible** - Easy to add integrations
@@ -296,7 +292,7 @@ fogd --port 8080 --enable-slack --slack-mode http --slack-secret <secret>
 ```
 ┌──────────────────────────────────┐
 │       User Interfaces            │
-│  CLI │ Slack │ API │ VS Code     │
+│ CLI │ Desktop │ Slack │ API │ VS Code │
 └──────────┬───────────────────────┘
            │
     ┌──────▼──────┐
@@ -370,7 +366,7 @@ code --install-extension *.vsix
 - [x] fog - AI orchestration  
 - [x] fogd - HTTP API
 - [x] Slack integration
-- [x] Lightweight web UI in fogd
+- [x] Desktop app (Wails)
 - [x] VS Code extension
 - [x] Claude Code MCP
 - [ ] Advanced GUI workflows
@@ -403,7 +399,7 @@ For validation steps, see [docs/TESTING.md](docs/TESTING.md).
 
 ## 📜 License
 
-MIT
+AGPL-3.0-or-later
 
 ---
 

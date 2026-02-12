@@ -26,7 +26,6 @@ This document reflects the currently implemented product surface in this reposit
   - `fog config view`
   - `fog config set --default-tool ... --branch-prefix ...`
 - UI launcher:
-  - `fog ui` ensures `fogd` is running and opens browser.
   - `fog app` launches desktop app binary (`fogapp`) when installed.
 - Session execution groundwork is implemented in the runner:
   - create session (one branch/worktree)
@@ -57,11 +56,6 @@ This document reflects the currently implemented product surface in this reposit
   - `PUT /api/cloud`
   - `POST /api/cloud/pair`
   - `POST /api/cloud/unpair`
-- Built-in web UI served at `/`:
-  - session activity dashboard
-  - create session + follow-up actions
-  - repo discovery/import and managed repo listing
-  - default tool + branch prefix settings
 - Slack integration:
   - HTTP slash-command mode (`/slack/command`)
   - Socket Mode (`@fog`) with thread follow-ups
@@ -73,7 +67,8 @@ This document reflects the currently implemented product surface in this reposit
 ### `fogapp` (Wails desktop preview)
 - Wails desktop shell scaffold exists at `cmd/fogapp`.
 - Startup behavior:
-  - ensures local `fogd` is running on `127.0.0.1:8080`
+  - ensures local `fogd` API server is running on `127.0.0.1:8080`
+  - starts bundled in-process `fogd` server when an external one is not already running
   - loads a desktop-focused UI over existing Fog HTTP APIs
 - Desktop UI supports:
   - session list and follow-up workflow

@@ -1,6 +1,6 @@
-# Contributing to wtx
+# Contributing to Fog
 
-Thank you for your interest in contributing to wtx!
+Thank you for your interest in contributing to Fog.
 
 ## Development Setup
 
@@ -15,8 +15,8 @@ Thank you for your interest in contributing to wtx!
 1. Fork the repository
 2. Clone your fork:
    ```bash
-   git clone https://github.com/darkLord19/wtx.git
-   cd wtx
+   git clone https://github.com/darkLord19/foglet.git
+   cd fog
    ```
 
 3. Install dependencies:
@@ -41,16 +41,18 @@ Thank you for your interest in contributing to wtx!
 ## Project Structure
 
 ```
-wtx/
-├── cmd/wtx/              # CLI entry point
+fog/
+├── cmd/wtx/              # worktree CLI
+├── cmd/fog/              # orchestration CLI
+├── cmd/fogd/             # daemon HTTP + Slack control plane
+├── cmd/fogapp/           # desktop UI (Wails)
 ├── internal/
+│   ├── api/              # fogd API handlers
+│   ├── runner/           # AI task/session orchestration
+│   ├── state/            # encrypted local SQLite state
 │   ├── git/              # Git operations
-│   ├── tui/              # Bubble Tea UI
 │   ├── editor/           # Editor adapters
-│   ├── metadata/         # Data storage
-│   ├── config/           # Configuration
-│   ├── process/          # Process management
-│   └── util/             # Utilities
+│   └── ...
 ├── plugins/
 │   ├── vscode/           # VS Code extension
 │   └── claude-code/      # Claude Code MCP server
@@ -132,7 +134,7 @@ Follow conventional commits:
 
 ## Pull Request Process
 
-1. Update README if adding features
+1. Update docs (`README.md`, `docs/CURRENT_STATE.md`, `docs/FOG.md`, `docs/TESTING.md`) for user-facing changes
 2. Add tests for new functionality
 3. Ensure all tests pass
 4. Update CHANGELOG.md
@@ -149,6 +151,7 @@ Open an issue with:
 
 Include:
 - wtx version (`wtx version`)
+- fog version (`fog version`)
 - OS and version
 - Steps to reproduce
 - Expected vs actual behavior
@@ -162,8 +165,8 @@ Include:
 
 ## Code of Conduct
 
-Be respectful and constructive. We're all here to make wtx better!
+Be respectful and constructive. We're all here to make Fog better.
 
 ## License
 
-By contributing, you agree your contributions will be licensed under MIT License.
+By contributing, you agree your contributions will be licensed under AGPL-3.0-or-later.

@@ -98,10 +98,10 @@ fogcloud --port 9090 \
 make install
 
 # Or install individually
-go install github.com/darkLord19/wtx/cmd/wtx@latest
-go install github.com/darkLord19/wtx/cmd/fog@latest
-go install github.com/darkLord19/wtx/cmd/fogd@latest
-go install github.com/darkLord19/wtx/cmd/fogcloud@latest
+go install github.com/darkLord19/foglet/cmd/wtx@latest
+go install github.com/darkLord19/foglet/cmd/fog@latest
+go install github.com/darkLord19/foglet/cmd/fogd@latest
+go install github.com/darkLord19/foglet/cmd/fogcloud@latest
 # fogapp is built via Wails (desktop preview), not plain go install
 ```
 
@@ -367,17 +367,17 @@ curl -X POST http://localhost:8080/api/tasks/create \
   }'
 ```
 
-### 6. Open Web UI
+### 6. Start Desktop App
 
 ```bash
-fog ui
-# Checks /health; if fogd is not running, starts it and opens browser.
-# The page is served by fogd at GET / and shows:
-# - active/all task list (auto-refresh)
-# - default tool + branch prefix settings editor
+# launch installed desktop app
+fog app
+
+# or run in dev mode
+make fogapp-dev
 ```
 
-### 7. Start Wails Desktop UI (Preview)
+### 7. Wails Desktop Build
 
 Prerequisites:
 - Wails CLI (`go install github.com/wailsapp/wails/v2/cmd/wails@latest`)
@@ -401,7 +401,7 @@ make fogapp-build
 
 Notes:
 - Desktop entrypoint is at `cmd/fogapp`.
-- Desktop mode ensures `fogd` is running and then uses the same local HTTP APIs.
+- Desktop mode checks `http://127.0.0.1:8080/health` and starts bundled in-process `fogd` when needed.
 - Build uses `desktop` build tag.
 
 **GET /api/tasks/{id}**
@@ -658,7 +658,7 @@ make test
 - [x] fog - AI orchestration
 - [x] fogd - HTTP API
 - [x] Slack integration
-- [ ] GUI web interface
+- [x] Desktop app (Wails)
 - [ ] PR comment → re-run loop
 - [ ] More AI tool adapters
 - [ ] Docker/container isolation
@@ -666,7 +666,7 @@ make test
 
 ## License
 
-MIT
+AGPL-3.0-or-later
 
 ---
 

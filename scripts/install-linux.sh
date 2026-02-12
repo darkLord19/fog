@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-REPO="${FOG_GITHUB_REPO:-darkLord19/wtx}"
+REPO="${FOG_GITHUB_REPO:-darkLord19/foglet}"
 VERSION_TAG=""
 INSTALL_DIR=""
 DRY_RUN="false"
@@ -19,7 +19,7 @@ Usage:
 Options:
   --version <tag>      Install a specific version tag (e.g. v0.2.0 or 0.2.0)
   --install-dir <dir>  Target bin directory (default: /usr/local/bin if writable, else ~/.local/bin)
-  --repo <owner/repo>  GitHub repo (default: darkLord19/wtx)
+  --repo <owner/repo>  GitHub repo (default: darkLord19/foglet)
   --no-sudo            Never attempt sudo install
   --skip-verify        Skip SHA-256 verification (not recommended)
   --dry-run            Print resolved actions without downloading/installing

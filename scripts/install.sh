@@ -19,9 +19,9 @@ fi
 
 # Install binaries
 echo -e "${YELLOW}Installing binaries...${NC}"
-go install github.com/darkLord19/wtx/cmd/wtx@latest
-go install github.com/darkLord19/wtx/cmd/fog@latest
-go install github.com/darkLord19/wtx/cmd/fogd@latest
+go install github.com/darkLord19/foglet/cmd/wtx@latest
+go install github.com/darkLord19/foglet/cmd/fog@latest
+go install github.com/darkLord19/foglet/cmd/fogd@latest
 
 # Check if installation was successful
 if command -v wtx &> /dev/null && command -v fog &> /dev/null && command -v fogd &> /dev/null; then
@@ -46,7 +46,7 @@ case "$SHELL_NAME" in
     bash)
         COMPLETION_DIR="$HOME/.local/share/bash-completion/completions"
         mkdir -p "$COMPLETION_DIR"
-        curl -sL https://raw.githubusercontent.com/darkLord19/wtx/main/scripts/completions/wtx.bash \
+        curl -sL https://raw.githubusercontent.com/darkLord19/foglet/main/scripts/completions/wtx.bash \
             -o "$COMPLETION_DIR/wtx"
         echo -e "${GREEN}✓ Bash completions installed${NC}"
         echo "Run: source $COMPLETION_DIR/wtx"
@@ -54,7 +54,7 @@ case "$SHELL_NAME" in
     zsh)
         COMPLETION_DIR="${ZDOTDIR:-$HOME}/.zsh/completions"
         mkdir -p "$COMPLETION_DIR"
-        curl -sL https://raw.githubusercontent.com/darkLord19/wtx/main/scripts/completions/wtx.zsh \
+        curl -sL https://raw.githubusercontent.com/darkLord19/foglet/main/scripts/completions/wtx.zsh \
             -o "$COMPLETION_DIR/_wtx"
         echo -e "${GREEN}✓ Zsh completions installed${NC}"
         echo "Add to ~/.zshrc: fpath=($COMPLETION_DIR \$fpath)"
@@ -76,7 +76,7 @@ echo "  wtx list         # List worktrees"
 echo "  wtx add <n>     # Create worktree"
 echo "  wtx open <n>    # Open in editor"
 echo "  fog setup        # Configure PAT + default tool"
-echo "  fog ui           # Open Fog web UI (auto-starts fogd)"
+echo "  fog app          # Launch Fog desktop app (if installed)"
 echo "  fog run --help   # Run AI task in isolated worktree"
 echo ""
 echo "For more info: wtx --help, fog --help, fogd --help"

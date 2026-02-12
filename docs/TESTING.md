@@ -169,23 +169,7 @@ Expected checks:
 - run events include setup/ai/commit phases and terminal state
 - cloud config endpoint persists `cloud_url`
 
-## 6. Web UI test
-
-```bash
-fog ui
-```
-
-Expected checks:
-- if PAT/default tool are missing, onboarding form is shown first
-- onboarding form accepts GitHub PAT + default tool and persists both
-- opens `http://127.0.0.1:8080/`
-- shows active/total sessions
-- allows creating a new session and follow-up run
-- allows discovering/importing repos and updates managed repo list
-- settings form updates `default_tool` and `branch_prefix`
-- cloud section can save `cloud_url`, pair with a code, and unpair a user mapping
-
-## 6.1 Wails Desktop UI smoke test (preview)
+## 6. Wails Desktop UI smoke test
 
 Prerequisites:
 - Wails CLI installed
@@ -200,10 +184,12 @@ make fogapp-dev
 Expected checks:
 - app starts and `fogd` is auto-started when not already running
 - desktop dashboard renders sessions/repo/settings/cloud panels
-- new session + follow-up actions work the same as web UI
+- if PAT/default tool are missing, onboarding fields are shown first
+- onboarding accepts GitHub PAT + default tool and persists both
+- new session + follow-up actions work against local fogd APIs
 - session timeline renders runs/events and branch/compare actions
 
-## 6.2 Desktop frontend E2E smoke tests (headless)
+## 6.1 Desktop frontend E2E smoke tests (headless)
 
 Prerequisites:
 - Chrome/Chromium installed in PATH (`google-chrome`, `google-chrome-stable`, `chromium`, or `chromium-browser`)

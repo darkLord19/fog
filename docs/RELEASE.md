@@ -43,7 +43,7 @@ Outputs:
 scripts/release/generate-homebrew-formula.sh \
   v0.2.0 \
   dist/wtx_0.2.0_checksums.txt \
-  darkLord19/wtx > dist/wtx.rb
+  darkLord19/foglet > dist/wtx.rb
 
 # or via Makefile
 make release-formula RELEASE_TAG=v0.2.0
