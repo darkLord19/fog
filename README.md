@@ -92,6 +92,9 @@ fogd --port 8080
 # 4. Discover/import repos via configured PAT
 fog repos discover
 fog repos import
+# import registers repo metadata and initializes:
+# ~/.fog/repos/<alias>/repo.git (bare clone)
+# ~/.fog/repos/<alias>/base (base worktree)
 ```
 
 ### Slack Usage

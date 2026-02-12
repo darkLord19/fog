@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -47,5 +49,43 @@ func TestSelectReposByFullName(t *testing.T) {
 	}
 	if len(selected) != 1 || selected[0].FullName != "acme/web" {
 		t.Fatalf("unexpected selected repos: %+v", selected)
+	}
+}
+
+func TestEnsureBareRepoInitialized(t *testing.T) {
+	tmp := t.TempDir()
+	barePath := filepath.Join(tmp, "repo.git")
+	basePath := filepath.Join(tmp, "base")
+
+	repo := foggithub.Repo{
+		FullName: "acme/api",
+		CloneURL: "https://github.com/acme/api.git",
+	}
+
+	calls := make([][]string, 0, 2)
+	origRunner := gitRunner
+	t.Cleanup(func() { gitRunner = origRunner })
+
+	gitRunner = func(extraEnv []string, args ...string) error {
+		_ = extraEnv
+		calls = append(calls, append([]string(nil), args...))
+		if len(args) >= 1 && args[0] == "-c" {
+			if err := os.MkdirAll(barePath, 0o755); err != nil {
+				return err
+			}
+		}
+		if len(args) >= 4 && args[0] == "--git-dir" {
+			if err := os.MkdirAll(basePath, 0o755); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if err := ensureBareRepoInitialized("token", repo, barePath, basePath); err != nil {
+		t.Fatalf("ensureBareRepoInitialized failed: %v", err)
+	}
+	if len(calls) != 2 {
+		t.Fatalf("expected 2 git calls, got %d", len(calls))
 	}
 }

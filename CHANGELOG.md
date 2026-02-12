@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **GitHub API client** - Token validation and paginated repository discovery primitives
 - **Onboarding command** - `fog setup` to configure PAT and default tool
 - **Repo commands** - `fog repos discover|import|list`
+- **Managed repo initialization** - `fog repos import` creates bare clone + base worktree under `~/.fog/repos`
 
 ### Added - wtx Enhancements
 - `wtx status <n>` - Detailed worktree status

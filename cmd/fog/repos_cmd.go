@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ import (
 var (
 	reposJSONFlag   bool
 	reposSelectFlag string
+	gitRunner       = runGitCommand
 )
 
 var reposCmd = &cobra.Command{
@@ -129,6 +131,14 @@ func runReposImport() error {
 	}
 	defer func() { _ = store.Close() }()
 
+	token, found, err := store.GetGitHubToken()
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("github token not configured; run `fog setup` first")
+	}
+
 	managedReposDir := fogenv.ManagedReposDir(fogHome)
 	if err := os.MkdirAll(managedReposDir, 0o755); err != nil {
 		return fmt.Errorf("create managed repos dir: %w", err)
@@ -140,6 +150,12 @@ func runReposImport() error {
 		if err := os.MkdirAll(repoDir, 0o755); err != nil {
 			return fmt.Errorf("create repo dir %s: %w", repoDir, err)
 		}
+		barePath := filepath.Join(repoDir, "repo.git")
+		basePath := filepath.Join(repoDir, "base")
+
+		if err := ensureBareRepoInitialized(token, repo, barePath, basePath); err != nil {
+			return err
+		}
 
 		host := repoHost(repo.CloneURL)
 		_, err := store.UpsertRepo(state.Repo{
@@ -148,8 +164,8 @@ func runReposImport() error {
 			Host:             host,
 			Owner:            repo.OwnerLogin,
 			Repo:             repo.Name,
-			BarePath:         filepath.Join(repoDir, "repo.git"),
-			BaseWorktreePath: filepath.Join(repoDir, "base"),
+			BarePath:         barePath,
+			BaseWorktreePath: basePath,
 			DefaultBranch:    repo.DefaultBranch,
 		})
 		if err != nil {
@@ -219,6 +235,44 @@ func discoverGitHubRepos() ([]foggithub.Repo, error) {
 	}
 
 	return repos, nil
+}
+
+func ensureBareRepoInitialized(token string, repo foggithub.Repo, barePath, basePath string) error {
+	if _, err := os.Stat(barePath); errorsIsNotExist(err) {
+		header := "http.extraHeader=Authorization: Bearer " + token
+		if err := gitRunner(nil, "-c", header, "clone", "--bare", repo.CloneURL, barePath); err != nil {
+			return fmt.Errorf("clone bare repository %s: %w", repo.FullName, err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("check bare repo path %s: %w", barePath, err)
+	}
+
+	if _, err := os.Stat(basePath); errorsIsNotExist(err) {
+		if err := os.MkdirAll(filepath.Dir(basePath), 0o755); err != nil {
+			return fmt.Errorf("create base worktree parent: %w", err)
+		}
+		if err := gitRunner(nil, "--git-dir", barePath, "worktree", "add", basePath); err != nil {
+			return fmt.Errorf("create base worktree for %s: %w", repo.FullName, err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("check base worktree path %s: %w", basePath, err)
+	}
+
+	return nil
+}
+
+func runGitCommand(extraEnv []string, args ...string) error {
+	cmd := exec.Command("git", args...)
+	cmd.Env = append(os.Environ(), extraEnv...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git %s: %w\n%s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func errorsIsNotExist(err error) bool {
+	return err != nil && os.IsNotExist(err)
 }
 
 func selectRepos(repos []foggithub.Repo, selectFlag string) ([]foggithub.Repo, error) {
