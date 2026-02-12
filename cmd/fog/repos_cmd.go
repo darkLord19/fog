@@ -409,12 +409,14 @@ func parseIndexes(input string, max int) ([]int, error) {
 func repoAlias(repo foggithub.Repo) string {
 	full := strings.TrimSpace(repo.FullName)
 	if full != "" {
-		return strings.ReplaceAll(full, "/", "-")
+		return full
 	}
-	if repo.OwnerLogin == "" {
-		return repo.Name
+	owner := strings.TrimSpace(repo.OwnerLogin)
+	name := strings.TrimSpace(repo.Name)
+	if owner == "" {
+		return name
 	}
-	return repo.OwnerLogin + "-" + repo.Name
+	return owner + "/" + name
 }
 
 func repoHost(cloneURL string) string {

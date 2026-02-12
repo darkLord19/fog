@@ -36,8 +36,8 @@ func TestParseIndexesDedup(t *testing.T) {
 func TestRepoAlias(t *testing.T) {
 	repo := foggithub.Repo{FullName: "acme/api", OwnerLogin: "acme", Name: "api"}
 	got := repoAlias(repo)
-	if got != "acme-api" {
-		t.Fatalf("repoAlias mismatch: got %q want %q", got, "acme-api")
+	if got != "acme/api" {
+		t.Fatalf("repoAlias mismatch: got %q want %q", got, "acme/api")
 	}
 }
 

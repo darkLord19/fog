@@ -21,6 +21,7 @@ This document reflects the currently implemented product surface in this reposit
   - `fog repos discover`
   - `fog repos import`
   - `fog repos list`
+  - repository identifier is fixed to `owner/repo-name`
 - Config commands:
   - `fog config view`
   - `fog config set --default-tool ... --branch-prefix ...`
@@ -43,6 +44,9 @@ This document reflects the currently implemented product surface in this reposit
   - `GET /api/sessions/{id}/runs`
   - `POST /api/sessions/{id}/runs`
   - `GET /api/sessions/{id}/runs/{run_id}/events`
+  - `GET /api/repos`
+  - `POST /api/repos/discover`
+  - `POST /api/repos/import`
   - `GET /api/settings`
   - `PUT /api/settings`
 - Built-in web UI served at `/`:
@@ -78,8 +82,8 @@ Rules:
 Fog home:
 - `~/.fog/fog.db` (SQLite)
 - `~/.fog/master.key` (file-based local encryption key)
-- `~/.fog/repos/<alias>/repo.git` (bare)
-- `~/.fog/repos/<alias>/base` (base worktree)
+- `~/.fog/repos/<owner>/<repo-name>/repo.git` (bare)
+- `~/.fog/repos/<owner>/<repo-name>/base` (base worktree)
 
 State details:
 - PAT stored encrypted at rest (never plaintext).

@@ -69,14 +69,14 @@ Expected checks:
 - default tool is set.
 - selected repos appear in `fog repos list`.
 - each imported repo has:
-  - `~/.fog/repos/<alias>/repo.git`
-  - `~/.fog/repos/<alias>/base`
+  - `~/.fog/repos/<owner>/<repo-name>/repo.git`
+  - `~/.fog/repos/<owner>/<repo-name>/base`
 
 ## 4. fog run task test
 
 ```bash
 fog run \
-  --repo <alias> \
+  --repo <owner/repo-name> \
   --branch fog/test-flow \
   --prompt "Create a tiny README change for smoke test" \
   --commit
@@ -86,7 +86,7 @@ Optional validation/PR:
 
 ```bash
 fog run \
-  --repo <alias> \
+  --repo <owner/repo-name> \
   --branch fog/test-validate \
   --prompt "Refactor small helper" \
   --validate \
@@ -125,7 +125,7 @@ Create task API test:
 curl -X POST http://localhost:8080/api/tasks/create \
   -H "Content-Type: application/json" \
   -d '{
-    "repo":"<alias>",
+    "repo":"<owner/repo-name>",
     "branch":"fog/api-smoke",
     "prompt":"Apply a tiny formatting fix",
     "ai_tool":"claude",
@@ -184,7 +184,7 @@ Local payload smoke test:
 
 ```bash
 curl -X POST http://localhost:8080/slack/command \
-  -d "text=[repo='<alias>' tool='claude'] add smoke test note" \
+  -d "text=[repo='<owner/repo-name>' tool='claude'] add smoke test note" \
   -d "channel_id=C123" \
   -d "response_url=https://example.com/response"
 ```
@@ -207,7 +207,7 @@ fogd --port 8080 \
 
 In Slack:
 - Initial:
-  - `@fog [repo='<alias>' tool='claude'] implement small feature`
+  - `@fog [repo='<owner/repo-name>' tool='claude'] implement small feature`
 - Follow-up in thread:
   - `@fog add tests for edge case`
 
