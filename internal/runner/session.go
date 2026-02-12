@@ -1,0 +1,480 @@
+package runner
+
+import (
+	"bytes"
+	"errors"
+	"fmt"
+	"os/exec"
+	"strings"
+	"time"
+
+	"github.com/darkLord19/wtx/internal/ai"
+	"github.com/darkLord19/wtx/internal/state"
+	"github.com/darkLord19/wtx/internal/task"
+	"github.com/google/uuid"
+)
+
+// StartSessionOptions configures the first run in a new session.
+type StartSessionOptions struct {
+	RepoName    string
+	RepoPath    string
+	Branch      string
+	Tool        string
+	Model       string
+	Prompt      string
+	AutoPR      bool
+	SetupCmd    string
+	Validate    bool
+	ValidateCmd string
+	BaseBranch  string
+	CommitMsg   string
+}
+
+// StartSession creates a new session (branch/worktree) and executes the initial prompt.
+func (r *Runner) StartSession(opts StartSessionOptions) (state.Session, state.Run, error) {
+	if r.state == nil {
+		return state.Session{}, state.Run{}, errors.New("state store not configured")
+	}
+
+	opts.RepoName = strings.TrimSpace(opts.RepoName)
+	opts.RepoPath = strings.TrimSpace(opts.RepoPath)
+	opts.Branch = strings.TrimSpace(opts.Branch)
+	opts.Tool = strings.TrimSpace(opts.Tool)
+	opts.Model = strings.TrimSpace(opts.Model)
+	opts.Prompt = strings.TrimSpace(opts.Prompt)
+	opts.SetupCmd = strings.TrimSpace(opts.SetupCmd)
+	opts.ValidateCmd = strings.TrimSpace(opts.ValidateCmd)
+	opts.BaseBranch = strings.TrimSpace(opts.BaseBranch)
+	opts.CommitMsg = strings.TrimSpace(opts.CommitMsg)
+
+	switch {
+	case opts.RepoName == "":
+		return state.Session{}, state.Run{}, errors.New("repo name is required")
+	case opts.RepoPath == "":
+		return state.Session{}, state.Run{}, errors.New("repo path is required")
+	case opts.Branch == "":
+		return state.Session{}, state.Run{}, errors.New("branch is required")
+	case opts.Tool == "":
+		return state.Session{}, state.Run{}, errors.New("tool is required")
+	case opts.Prompt == "":
+		return state.Session{}, state.Run{}, errors.New("prompt is required")
+	}
+
+	worktreePath, err := r.createWorktreePath(opts.RepoPath, opts.Branch)
+	if err != nil {
+		return state.Session{}, state.Run{}, err
+	}
+
+	now := time.Now().UTC()
+	session := state.Session{
+		ID:           uuid.New().String(),
+		RepoName:     opts.RepoName,
+		Branch:       opts.Branch,
+		WorktreePath: worktreePath,
+		Tool:         opts.Tool,
+		Model:        opts.Model,
+		AutoPR:       opts.AutoPR,
+		Status:       string(task.StateCreated),
+		Busy:         true,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if err := r.state.CreateSession(session); err != nil {
+		return state.Session{}, state.Run{}, err
+	}
+
+	run := state.Run{
+		ID:        uuid.New().String(),
+		SessionID: session.ID,
+		Prompt:    opts.Prompt,
+		State:     string(task.StateCreated),
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := r.state.CreateRun(run); err != nil {
+		return state.Session{}, state.Run{}, err
+	}
+
+	execOpts := sessionRunOptions{
+		Prompt:      opts.Prompt,
+		SetupCmd:    opts.SetupCmd,
+		Validate:    opts.Validate,
+		ValidateCmd: opts.ValidateCmd,
+		BaseBranch:  opts.BaseBranch,
+		CommitMsg:   opts.CommitMsg,
+	}
+	err = r.executeSessionRun(session, run, execOpts)
+
+	updatedSession, found, sessionErr := r.state.GetSession(session.ID)
+	if sessionErr != nil {
+		return state.Session{}, state.Run{}, sessionErr
+	}
+	if !found {
+		return state.Session{}, state.Run{}, fmt.Errorf("session %q disappeared", session.ID)
+	}
+	updatedRun, found, runErr := r.state.GetRun(run.ID)
+	if runErr != nil {
+		return state.Session{}, state.Run{}, runErr
+	}
+	if !found {
+		return state.Session{}, state.Run{}, fmt.Errorf("run %q disappeared", run.ID)
+	}
+
+	if err != nil {
+		return updatedSession, updatedRun, err
+	}
+	return updatedSession, updatedRun, nil
+}
+
+// ContinueSession appends one follow-up run to an existing session.
+func (r *Runner) ContinueSession(sessionID, prompt string) (state.Run, error) {
+	if r.state == nil {
+		return state.Run{}, errors.New("state store not configured")
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	prompt = strings.TrimSpace(prompt)
+	if sessionID == "" {
+		return state.Run{}, errors.New("session id is required")
+	}
+	if prompt == "" {
+		return state.Run{}, errors.New("prompt is required")
+	}
+
+	session, found, err := r.state.GetSession(sessionID)
+	if err != nil {
+		return state.Run{}, err
+	}
+	if !found {
+		return state.Run{}, fmt.Errorf("session %q not found", sessionID)
+	}
+	if session.Busy {
+		return state.Run{}, fmt.Errorf("session %q is busy", sessionID)
+	}
+
+	if err := r.state.SetSessionBusy(session.ID, true); err != nil {
+		return state.Run{}, err
+	}
+
+	now := time.Now().UTC()
+	run := state.Run{
+		ID:        uuid.New().String(),
+		SessionID: session.ID,
+		Prompt:    prompt,
+		State:     string(task.StateCreated),
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := r.state.CreateRun(run); err != nil {
+		return state.Run{}, err
+	}
+
+	err = r.executeSessionRun(session, run, sessionRunOptions{
+		Prompt:     prompt,
+		BaseBranch: "main",
+	})
+	updatedRun, found, runErr := r.state.GetRun(run.ID)
+	if runErr != nil {
+		return state.Run{}, runErr
+	}
+	if !found {
+		return state.Run{}, fmt.Errorf("run %q disappeared", run.ID)
+	}
+	if err != nil {
+		return updatedRun, err
+	}
+	return updatedRun, nil
+}
+
+// GetSession returns one session by id.
+func (r *Runner) GetSession(id string) (state.Session, bool, error) {
+	if r.state == nil {
+		return state.Session{}, false, errors.New("state store not configured")
+	}
+	return r.state.GetSession(id)
+}
+
+// ListSessions returns all sessions ordered by updated time.
+func (r *Runner) ListSessions() ([]state.Session, error) {
+	if r.state == nil {
+		return nil, errors.New("state store not configured")
+	}
+	return r.state.ListSessions()
+}
+
+// ListSessionRuns returns runs in one session.
+func (r *Runner) ListSessionRuns(sessionID string) ([]state.Run, error) {
+	if r.state == nil {
+		return nil, errors.New("state store not configured")
+	}
+	return r.state.ListRuns(sessionID)
+}
+
+// ListRunEvents returns run events in chronological order.
+func (r *Runner) ListRunEvents(runID string, limit int) ([]state.RunEvent, error) {
+	if r.state == nil {
+		return nil, errors.New("state store not configured")
+	}
+	return r.state.ListRunEvents(runID, limit)
+}
+
+type sessionRunOptions struct {
+	Prompt      string
+	SetupCmd    string
+	Validate    bool
+	ValidateCmd string
+	BaseBranch  string
+	CommitMsg   string
+}
+
+func (r *Runner) executeSessionRun(session state.Session, run state.Run, opts sessionRunOptions) (retErr error) {
+	if r.state == nil {
+		return errors.New("state store not configured")
+	}
+	if strings.TrimSpace(opts.BaseBranch) == "" {
+		opts.BaseBranch = "main"
+	}
+	defer func() {
+		if err := r.state.SetSessionBusy(session.ID, false); err != nil && retErr == nil {
+			retErr = err
+		}
+	}()
+
+	fail := func(phase string, err error) error {
+		_ = r.state.AppendRunEvent(state.RunEvent{
+			RunID:   run.ID,
+			Type:    "error",
+			Message: phase + ": " + err.Error(),
+		})
+		_ = r.state.CompleteRun(run.ID, string(task.StateFailed), "", "", err.Error())
+		_ = r.state.UpdateSessionStatus(session.ID, string(task.StateFailed))
+		return err
+	}
+
+	if opts.SetupCmd != "" {
+		if err := r.state.SetRunState(run.ID, string(task.StateSetup)); err != nil {
+			return err
+		}
+		if err := r.state.UpdateSessionStatus(session.ID, string(task.StateSetup)); err != nil {
+			return err
+		}
+		_ = r.state.AppendRunEvent(state.RunEvent{
+			RunID:   run.ID,
+			Type:    "setup",
+			Message: "Running setup command",
+		})
+		if err := r.runShell(session.WorktreePath, opts.SetupCmd); err != nil {
+			return fail("setup", err)
+		}
+	}
+
+	if err := r.state.SetRunState(run.ID, string(task.StateAIRunning)); err != nil {
+		return err
+	}
+	if err := r.state.UpdateSessionStatus(session.ID, string(task.StateAIRunning)); err != nil {
+		return err
+	}
+	_ = r.state.AppendRunEvent(state.RunEvent{
+		RunID:   run.ID,
+		Type:    "ai_start",
+		Message: "Running AI tool",
+	})
+	aiOutput, err := r.runTool(session.Tool, session.WorktreePath, opts.Prompt)
+	if err != nil {
+		return fail("ai", err)
+	}
+	if strings.TrimSpace(aiOutput) != "" {
+		_ = r.state.AppendRunEvent(state.RunEvent{
+			RunID:   run.ID,
+			Type:    "ai_output",
+			Message: truncate(aiOutput, 8000),
+		})
+	}
+
+	if opts.Validate && opts.ValidateCmd != "" {
+		if err := r.state.SetRunState(run.ID, string(task.StateValidating)); err != nil {
+			return err
+		}
+		if err := r.state.UpdateSessionStatus(session.ID, string(task.StateValidating)); err != nil {
+			return err
+		}
+		if err := r.runShell(session.WorktreePath, opts.ValidateCmd); err != nil {
+			return fail("validate", err)
+		}
+	}
+
+	if err := r.state.SetRunState(run.ID, string(task.StateCommitted)); err != nil {
+		return err
+	}
+	if err := r.state.UpdateSessionStatus(session.ID, string(task.StateCommitted)); err != nil {
+		return err
+	}
+	commitSHA, commitMsg, changed, err := r.commitSessionChanges(session.WorktreePath, opts.Prompt, opts.CommitMsg)
+	if err != nil {
+		return fail("commit", err)
+	}
+	if !changed {
+		_ = r.state.AppendRunEvent(state.RunEvent{
+			RunID:   run.ID,
+			Type:    "commit",
+			Message: "No changes to commit",
+		})
+	}
+
+	// Push only when PR mode is enabled or a PR already exists for this session.
+	if changed && (session.AutoPR || strings.TrimSpace(session.PRURL) != "") {
+		setUpstream := strings.TrimSpace(session.PRURL) == ""
+		if err := r.pushBranch(session.WorktreePath, session.Branch, setUpstream); err != nil {
+			return fail("push", err)
+		}
+		if session.AutoPR && strings.TrimSpace(session.PRURL) == "" {
+			prURL, err := r.createDraftPR(session.WorktreePath, opts.BaseBranch, session.Branch, opts.Prompt, session.Tool, session.ID)
+			if err != nil {
+				return fail("create-pr", err)
+			}
+			if err := r.state.SetSessionPRURL(session.ID, prURL); err != nil {
+				return fail("store-pr", err)
+			}
+			session.PRURL = prURL
+			_ = r.state.AppendRunEvent(state.RunEvent{
+				RunID:   run.ID,
+				Type:    "pr",
+				Message: "Draft PR created: " + prURL,
+			})
+		}
+	}
+
+	if err := r.state.CompleteRun(run.ID, string(task.StateCompleted), commitSHA, commitMsg, ""); err != nil {
+		return err
+	}
+	if err := r.state.UpdateSessionStatus(session.ID, string(task.StateCompleted)); err != nil {
+		return err
+	}
+	_ = r.state.AppendRunEvent(state.RunEvent{
+		RunID:   run.ID,
+		Type:    "complete",
+		Message: "Run completed",
+	})
+	return nil
+}
+
+func (r *Runner) runTool(toolName, workdir, prompt string) (string, error) {
+	tool, err := ai.GetTool(toolName)
+	if err != nil {
+		return "", err
+	}
+	if !tool.IsAvailable() {
+		return "", fmt.Errorf("AI tool %s not available", toolName)
+	}
+
+	result, err := tool.Execute(workdir, prompt)
+	if err != nil {
+		return "", err
+	}
+	if !result.Success {
+		return "", fmt.Errorf("AI execution failed: %s", result.Output)
+	}
+	return strings.TrimSpace(result.Output), nil
+}
+
+func (r *Runner) runShell(workdir, cmdline string) error {
+	cmdline = strings.TrimSpace(cmdline)
+	if cmdline == "" {
+		return nil
+	}
+
+	cmd := exec.Command("sh", "-c", cmdline)
+	cmd.Dir = workdir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s\n%s", err.Error(), strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func (r *Runner) commitSessionChanges(workdir, prompt, commitMsg string) (sha, finalMsg string, changed bool, err error) {
+	cmd := exec.Command("git", "status", "--porcelain")
+	cmd.Dir = workdir
+	statusOut, err := cmd.Output()
+	if err != nil {
+		return "", "", false, fmt.Errorf("git status failed: %w", err)
+	}
+	if len(statusOut) == 0 {
+		return "", "", false, nil
+	}
+
+	addCmd := exec.Command("git", "add", ".")
+	addCmd.Dir = workdir
+	if output, err := addCmd.CombinedOutput(); err != nil {
+		return "", "", false, fmt.Errorf("git add failed: %w\n%s", err, strings.TrimSpace(string(output)))
+	}
+
+	finalMsg = strings.TrimSpace(commitMsg)
+	if finalMsg == "" {
+		finalMsg = fmt.Sprintf("feat: %s\n\nGenerated by Fog session", strings.TrimSpace(prompt))
+	}
+
+	commitCmd := exec.Command("git", "commit", "-m", finalMsg)
+	commitCmd.Dir = workdir
+	if output, err := commitCmd.CombinedOutput(); err != nil {
+		return "", "", false, fmt.Errorf("git commit failed: %w\n%s", err, strings.TrimSpace(string(output)))
+	}
+
+	shaCmd := exec.Command("git", "rev-parse", "HEAD")
+	shaCmd.Dir = workdir
+	shaOut, err := shaCmd.Output()
+	if err != nil {
+		return "", "", false, fmt.Errorf("git rev-parse failed: %w", err)
+	}
+
+	return strings.TrimSpace(string(shaOut)), finalMsg, true, nil
+}
+
+func (r *Runner) pushBranch(workdir, branch string, setUpstream bool) error {
+	args := []string{"push", "origin", branch}
+	if setUpstream {
+		args = []string{"push", "-u", "origin", branch}
+	}
+	cmd := exec.Command("git", args...)
+	cmd.Dir = workdir
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git %s failed: %w\n%s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func (r *Runner) createDraftPR(workdir, baseBranch, branch, prompt, tool, sessionID string) (string, error) {
+	if !commandExists("gh") {
+		return "", fmt.Errorf("gh CLI not available")
+	}
+	title := fmt.Sprintf("feat: %s", strings.TrimSpace(prompt))
+	body := fmt.Sprintf("Generated by Fog session\n\nSession ID: %s\nAI Tool: %s\n\nPrompt:\n%s",
+		sessionID,
+		tool,
+		strings.TrimSpace(prompt),
+	)
+	cmd := exec.Command(
+		"gh", "pr", "create",
+		"--draft",
+		"--base", baseBranch,
+		"--head", branch,
+		"--title", title,
+		"--body", body,
+	)
+	cmd.Dir = workdir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("create draft PR failed: %w\n%s", err, strings.TrimSpace(string(output)))
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+func truncate(value string, max int) string {
+	value = strings.TrimSpace(value)
+	if max <= 0 || len(value) <= max {
+		return value
+	}
+	var b bytes.Buffer
+	b.WriteString(value[:max])
+	b.WriteString("...")
+	return b.String()
+}

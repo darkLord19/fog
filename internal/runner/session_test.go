@@ -1,0 +1,104 @@
+package runner
+
+import (
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/darkLord19/wtx/internal/state"
+)
+
+func TestStartSessionRequiresStateStore(t *testing.T) {
+	r, err := New(t.TempDir(), t.TempDir())
+	if err != nil {
+		t.Fatalf("new runner failed: %v", err)
+	}
+
+	_, _, err = r.StartSession(StartSessionOptions{
+		RepoName: "acme/api",
+		RepoPath: t.TempDir(),
+		Branch:   "fog/test",
+		Tool:     "claude",
+		Prompt:   "test",
+	})
+	if err == nil {
+		t.Fatal("expected error when state store is missing")
+	}
+}
+
+func TestStartSessionValidatesRequiredFields(t *testing.T) {
+	r, err := New(t.TempDir(), t.TempDir())
+	if err != nil {
+		t.Fatalf("new runner failed: %v", err)
+	}
+	st, err := state.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("new state store failed: %v", err)
+	}
+	defer func() { _ = st.Close() }()
+	r.SetStateStore(st)
+
+	_, _, err = r.StartSession(StartSessionOptions{
+		RepoName: "acme/api",
+		RepoPath: t.TempDir(),
+		Branch:   "",
+		Tool:     "claude",
+		Prompt:   "test",
+	})
+	if err == nil || !strings.Contains(err.Error(), "branch is required") {
+		t.Fatalf("expected branch validation error, got: %v", err)
+	}
+}
+
+func TestContinueSessionRejectsBusySession(t *testing.T) {
+	r, err := New(t.TempDir(), t.TempDir())
+	if err != nil {
+		t.Fatalf("new runner failed: %v", err)
+	}
+	st, err := state.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("new state store failed: %v", err)
+	}
+	defer func() { _ = st.Close() }()
+	r.SetStateStore(st)
+
+	if _, err := st.UpsertRepo(state.Repo{
+		Name:             "acme/api",
+		URL:              "https://github.com/acme/api.git",
+		Host:             "github.com",
+		Owner:            "acme",
+		Repo:             "api",
+		BarePath:         "/tmp/acme-api/repo.git",
+		BaseWorktreePath: "/tmp/acme-api/base",
+		DefaultBranch:    "main",
+	}); err != nil {
+		t.Fatalf("upsert repo failed: %v", err)
+	}
+
+	if err := st.CreateSession(state.Session{
+		ID:           "session-1",
+		RepoName:     "acme/api",
+		Branch:       "fog/test",
+		WorktreePath: "/tmp/worktree",
+		Tool:         "claude",
+		AutoPR:       false,
+		Status:       "AI_RUNNING",
+		Busy:         true,
+		CreatedAt:    time.Now().UTC(),
+		UpdatedAt:    time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("create session failed: %v", err)
+	}
+
+	_, err = r.ContinueSession("session-1", "follow up")
+	if err == nil || !strings.Contains(err.Error(), "is busy") {
+		t.Fatalf("expected busy session error, got %v", err)
+	}
+}
+
+func TestTruncate(t *testing.T) {
+	got := truncate("abcdefgh", 4)
+	if got != "abcd..." {
+		t.Fatalf("unexpected truncate output: %q", got)
+	}
+}

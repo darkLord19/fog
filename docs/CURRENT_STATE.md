@@ -26,6 +26,10 @@ This document reflects the currently implemented product surface in this reposit
   - `fog config set --default-tool ... --branch-prefix ...`
 - UI launcher:
   - `fog ui` ensures `fogd` is running and opens browser.
+- Session execution groundwork is implemented in the runner:
+  - create session (one branch/worktree)
+  - follow-up run execution on same worktree
+  - run event logging in SQLite
 
 ### `fogd` (control plane)
 - HTTP API:

@@ -34,6 +34,7 @@ Session persistence focus:
 
 ```bash
 GOCACHE=/tmp/go-build go test ./internal/state -run Session
+GOCACHE=/tmp/go-build go test ./internal/runner -run Session
 ```
 
 ## 2. wtx manual test

@@ -24,6 +24,9 @@ type Server struct {
 
 // New creates a new API server
 func New(runner *runner.Runner, stateStore *state.Store, port int) *Server {
+	if runner != nil {
+		runner.SetStateStore(stateStore)
+	}
 	return &Server{
 		runner:     runner,
 		stateStore: stateStore,

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/darkLord19/wtx/internal/ai"
+	"github.com/darkLord19/wtx/internal/state"
 	"github.com/darkLord19/wtx/internal/task"
 )
 
@@ -15,6 +16,7 @@ type Runner struct {
 	repoPath  string
 	configDir string
 	taskStore *task.Store
+	state     *state.Store
 }
 
 // New creates a new runner
@@ -30,6 +32,11 @@ func New(repoPath, configDir string) (*Runner, error) {
 		configDir: configDir,
 		taskStore: store,
 	}, nil
+}
+
+// SetStateStore sets the state persistence backend used for session workflows.
+func (r *Runner) SetStateStore(store *state.Store) {
+	r.state = store
 }
 
 // Execute runs a task
@@ -107,24 +114,11 @@ func (r *Runner) createWorktree(repoPath string, t *task.Task) error {
 	t.TransitionTo(task.StateSetup)
 	r.taskStore.Save(t)
 
-	if !isGitRepo(repoPath) {
-		return fmt.Errorf("not a git repository: %s", repoPath)
-	}
-
-	// Use wtx to create worktree and return machine-readable path.
-	cmd := exec.Command("wtx", "add", "--json", t.Branch)
-	cmd.Dir = repoPath
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("create worktree: %w\n%s", err, output)
-	}
-
-	result, err := parseWtxAddOutput(output)
+	worktreePath, err := r.createWorktreePath(repoPath, t.Branch)
 	if err != nil {
 		return err
 	}
-	t.WorktreePath = result.Path
+	t.WorktreePath = worktreePath
 
 	return nil
 }
@@ -289,6 +283,26 @@ func isGitRepo(path string) bool {
 func commandExists(name string) bool {
 	_, err := exec.LookPath(name)
 	return err == nil
+}
+
+func (r *Runner) createWorktreePath(repoPath, branch string) (string, error) {
+	if !isGitRepo(repoPath) {
+		return "", fmt.Errorf("not a git repository: %s", repoPath)
+	}
+
+	cmd := exec.Command("wtx", "add", "--json", branch)
+	cmd.Dir = repoPath
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("create worktree: %w\n%s", err, output)
+	}
+
+	result, err := parseWtxAddOutput(output)
+	if err != nil {
+		return "", err
+	}
+	return result.Path, nil
 }
 
 type wtxAddOutput struct {
