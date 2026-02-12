@@ -176,6 +176,7 @@
     newTool.innerHTML = "<option value=''>default</option>" + options;
     $("settings-prefix").value = s.branch_prefix || "fog";
     $("settings-pat-status").value = s.has_github_token ? "configured" : "missing";
+    $("settings-onboarding").value = s.onboarding_required ? "required" : "complete";
   }
 
   function renderCloudStatus(cloud) {
@@ -271,15 +272,20 @@
     setStatus("settings-status", "", "");
     btn.disabled = true;
     try {
+      var payload = {
+        default_tool: $("settings-tool").value,
+        branch_prefix: $("settings-prefix").value.trim()
+      };
+      var pat = $("settings-pat").value.trim();
+      if (pat) payload.github_pat = pat;
+
       await fetchJSON("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          default_tool: $("settings-tool").value,
-          branch_prefix: $("settings-prefix").value.trim()
-        })
+        body: JSON.stringify(payload)
       });
       setStatus("settings-status", "Saved", "ok");
+      $("settings-pat").value = "";
       state.settings = await fetchJSON("/api/settings");
       renderSettings();
     } catch (err) {
