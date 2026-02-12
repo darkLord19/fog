@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **UI launcher** - `fog ui` ensures fogd is running and opens the web UI URL
 - **Built-in web UI** - Fogd now serves a lightweight dashboard at `/` for task activity and settings updates
 - **Settings API** - Added `GET/PUT /api/settings` for `default_tool` and `branch_prefix`
+- **UI onboarding flow** - `fog ui` now prompts for GitHub PAT + default tool when onboarding is incomplete
 - **Cursor headless adapter** - Cursor now runs via `cursor-agent` instead of opening GUI only
 - **Dual PAT clone auth** - Managed repo import now supports both Bearer and Basic auth strategies for PAT compatibility
 - **Release artifact builder** - `scripts/release/build-artifacts.sh` builds multi-platform tarballs + checksums

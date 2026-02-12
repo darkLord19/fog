@@ -133,6 +133,8 @@ fog ui
 ```
 
 Expected checks:
+- if PAT/default tool are missing, onboarding form is shown first
+- onboarding form accepts GitHub PAT + default tool and persists both
 - opens `http://127.0.0.1:8080/`
 - shows active/total tasks
 - lists repo + branch + state + tool

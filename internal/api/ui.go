@@ -134,7 +134,21 @@ const webUIHTML = `<!doctype html>
       font-size: 12px;
       color: var(--muted);
     }
+    .callout {
+      border: 1px solid #e4d7b8;
+      background: #fff4dc;
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      font-size: 13px;
+    }
+    .hint {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
     @media (min-width: 880px) {
+      .onboarding { grid-column: span 12; }
       .tasks { grid-column: span 8; }
       .settings { grid-column: span 4; }
     }
@@ -146,6 +160,23 @@ const webUIHTML = `<!doctype html>
     <p class="sub">Track running agents and adjust Fog defaults.</p>
 
     <div class="grid">
+      <section class="card onboarding" id="onboarding-card" style="display:none;">
+        <h2>Onboarding</h2>
+        <p class="hint">Set your GitHub PAT and default tool to start using Fog.</p>
+        <form id="onboarding-form">
+          <div class="row">
+            <label for="onboarding-pat">GitHub PAT</label>
+            <input id="onboarding-pat" name="github_pat" type="password" placeholder="ghp_...">
+          </div>
+          <div class="row">
+            <label for="onboarding-tool">Default Tool</label>
+            <select id="onboarding-tool" name="default_tool"></select>
+          </div>
+          <button id="onboarding-save-btn" type="submit">Complete Onboarding</button>
+          <span class="status" id="onboarding-status"></span>
+        </form>
+      </section>
+
       <section class="card tasks">
         <h2>Task Activity</h2>
         <div class="kpi">
@@ -173,6 +204,9 @@ const webUIHTML = `<!doctype html>
 
       <section class="card settings">
         <h2>Settings</h2>
+        <div class="callout" id="setup-warning" style="display:none;">
+          Onboarding is incomplete. Save GitHub PAT and default tool above.
+        </div>
         <form id="settings-form">
           <div class="row">
             <label for="default-tool">Default Tool</label>
@@ -260,16 +294,25 @@ const webUIHTML = `<!doctype html>
     async function loadSettings() {
       var settings = await fetchJSON("/api/settings");
       var select = document.getElementById("default-tool");
+      var onboardingSelect = document.getElementById("onboarding-tool");
       var options = settings.available_tools || [];
       if (!options.length && settings.default_tool) {
         options = [settings.default_tool];
       }
-      select.innerHTML = options.map(function (tool) {
+      var optionsHTML = options.map(function (tool) {
         var selected = tool === settings.default_tool ? " selected" : "";
         return "<option value='" + escapeHTML(tool) + "'" + selected + ">" + escapeHTML(tool) + "</option>";
       }).join("");
+      select.innerHTML = optionsHTML;
+      onboardingSelect.innerHTML = optionsHTML;
+      if (!settings.default_tool && options.length) {
+        onboardingSelect.value = options[0];
+      }
+
       document.getElementById("branch-prefix").value = settings.branch_prefix || "fog";
       document.getElementById("pat-status").textContent = settings.has_github_token ? "configured" : "missing";
+      document.getElementById("onboarding-card").style.display = settings.onboarding_required ? "block" : "none";
+      document.getElementById("setup-warning").style.display = settings.onboarding_required ? "block" : "none";
     }
 
     async function onSaveSettings(event) {
@@ -280,15 +323,22 @@ const webUIHTML = `<!doctype html>
       saveBtn.disabled = true;
 
       try {
+        var payload = {
+          default_tool: document.getElementById("default-tool").value,
+          branch_prefix: document.getElementById("branch-prefix").value
+        };
+        var patInput = document.getElementById("onboarding-pat").value.trim();
+        if (patInput) {
+          payload.github_pat = patInput;
+        }
+
         await fetchJSON("/api/settings", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            default_tool: document.getElementById("default-tool").value,
-            branch_prefix: document.getElementById("branch-prefix").value
-          })
+          body: JSON.stringify(payload)
         });
         status.textContent = "Saved";
+        document.getElementById("onboarding-pat").value = "";
         await loadSettings();
       } catch (err) {
         status.textContent = "Save failed: " + err.message;
@@ -297,7 +347,44 @@ const webUIHTML = `<!doctype html>
       }
     }
 
+    async function onCompleteOnboarding(event) {
+      event.preventDefault();
+      var btn = document.getElementById("onboarding-save-btn");
+      var status = document.getElementById("onboarding-status");
+      status.textContent = "";
+      btn.disabled = true;
+
+      try {
+        var pat = document.getElementById("onboarding-pat").value.trim();
+        var tool = document.getElementById("onboarding-tool").value;
+        if (!pat) {
+          throw new Error("GitHub PAT is required for onboarding");
+        }
+        if (!tool) {
+          throw new Error("Default tool is required for onboarding");
+        }
+
+        await fetchJSON("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            github_pat: pat,
+            default_tool: tool
+          })
+        });
+
+        status.textContent = "Onboarding complete";
+        document.getElementById("onboarding-pat").value = "";
+        await loadSettings();
+      } catch (err) {
+        status.textContent = "Onboarding failed: " + err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
     document.getElementById("settings-form").addEventListener("submit", onSaveSettings);
+    document.getElementById("onboarding-form").addEventListener("submit", onCompleteOnboarding);
     refreshTasks();
     loadSettings().catch(function (err) {
       document.getElementById("save-status").textContent = "Settings load failed: " + err.message;

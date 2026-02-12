@@ -111,6 +111,7 @@ fogd --port 8080
 
 # 3b. Open UI (starts fogd automatically if needed)
 fog ui
+# If PAT/default tool are missing, UI shows onboarding first.
 
 # 4. Discover/import repos via configured PAT
 fog repos discover

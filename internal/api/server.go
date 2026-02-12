@@ -199,15 +199,17 @@ func (s *Server) handleUI(w http.ResponseWriter, r *http.Request) {
 }
 
 type SettingsResponse struct {
-	DefaultTool    string   `json:"default_tool,omitempty"`
-	BranchPrefix   string   `json:"branch_prefix,omitempty"`
-	HasGitHubToken bool     `json:"has_github_token"`
-	AvailableTools []string `json:"available_tools"`
+	DefaultTool        string   `json:"default_tool,omitempty"`
+	BranchPrefix       string   `json:"branch_prefix,omitempty"`
+	HasGitHubToken     bool     `json:"has_github_token"`
+	OnboardingRequired bool     `json:"onboarding_required"`
+	AvailableTools     []string `json:"available_tools"`
 }
 
 type UpdateSettingsRequest struct {
 	DefaultTool  *string `json:"default_tool"`
 	BranchPrefix *string `json:"branch_prefix"`
+	GitHubPAT    *string `json:"github_pat"`
 }
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
@@ -235,6 +237,7 @@ func (s *Server) getSettings(w http.ResponseWriter) {
 	if hasToken, err := s.stateStore.HasGitHubToken(); err == nil {
 		resp.HasGitHubToken = hasToken
 	}
+	resp.OnboardingRequired = !resp.HasGitHubToken || strings.TrimSpace(resp.DefaultTool) == ""
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
@@ -258,6 +261,18 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := s.stateStore.SetDefaultTool(tool); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if req.GitHubPAT != nil {
+		pat := strings.TrimSpace(*req.GitHubPAT)
+		if pat == "" {
+			http.Error(w, "github_pat cannot be empty", http.StatusBadRequest)
+			return
+		}
+		if err := s.stateStore.SaveGitHubToken(pat); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
