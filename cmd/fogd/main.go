@@ -205,7 +205,7 @@ func runDaemon() error {
 	log.Printf("API: http://localhost:%d/api/\n", flagPort)
 	log.Printf("Health: http://localhost:%d/health\n", flagPort)
 
-	return http.ListenAndServe(addr, mux)
+	return http.ListenAndServe(addr, api.WithCORS(mux))
 }
 
 func validateSlackConfig(mode, botToken, appToken string) error {

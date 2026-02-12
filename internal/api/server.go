@@ -60,7 +60,7 @@ func (s *Server) Start() error {
 	addr := fmt.Sprintf(":%d", s.port)
 	fmt.Printf("Starting Fog API server on %s\n", addr)
 
-	return http.ListenAndServe(addr, s.corsMiddleware(mux))
+	return http.ListenAndServe(addr, WithCORS(mux))
 }
 
 // handleTasks lists all tasks
@@ -323,8 +323,8 @@ func isToolAvailable(name string) bool {
 	return tool.IsAvailable()
 }
 
-// corsMiddleware adds CORS headers
-func (s *Server) corsMiddleware(next http.Handler) http.Handler {
+// WithCORS adds permissive CORS headers for local desktop/web clients.
+func WithCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
