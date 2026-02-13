@@ -2,10 +2,9 @@
   "$schema": "https://wails.io/schemas/config.v2.json",
   "name": "fogapp",
   "outputfilename": "fogapp",
-  "frontend:install": "",
-  "frontend:build": "",
-  "frontend:dev:watcher": "",
-  "frontend:dev:serverUrl": "",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "assetdir": "frontend/dist",
   "author": {
     "name": "Umang Parmar",
     "email": "umangjparmar@gmail.com"

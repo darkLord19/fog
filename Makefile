@@ -29,7 +29,7 @@ fogcloud:
 
 fogapp-dev:
 	@echo "Starting fogapp in Wails dev mode..."
-	@cd cmd/fogapp && wails dev -tags desktop
+	@cd cmd/fogapp && wails dev -tags desktop -assetdir frontend/dist
 
 fogapp-build:
 	@echo "Building fogapp desktop binary..."

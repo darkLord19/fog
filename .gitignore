@@ -36,4 +36,7 @@ temp/
 
 # Wails desktop build artifacts
 /cmd/fogapp/build/
+/cmd/fogapp/frontend/node_modules/
+/cmd/fogapp/frontend/dist/
+/cmd/fogapp/frontend/package.json.md5
 /cmd/fogapp/frontend/wailsjs/

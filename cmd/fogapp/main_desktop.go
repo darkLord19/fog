@@ -19,7 +19,7 @@ import (
 
 var version = "dev"
 
-//go:embed frontend/*
+//go:embed frontend/dist
 var assets embed.FS
 
 func main() {
@@ -44,7 +44,7 @@ func runDesktop() error {
 		}
 		apiToken = tokenStr
 	}
-	frontendFS, err := fs.Sub(assets, "frontend")
+	frontendFS, err := fs.Sub(assets, "frontend/dist")
 	if err != nil {
 		return fmt.Errorf("load desktop assets: %w", err)
 	}

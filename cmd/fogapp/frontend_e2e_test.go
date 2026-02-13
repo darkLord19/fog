@@ -55,42 +55,43 @@ func TestDesktopFrontendSmokeFlows(t *testing.T) {
 		chromedp.WaitVisible("#new-session-form", chromedp.ByQuery),
 		waitTextContains("#daemon-badge", "connected"),
 		waitTextContains("#completed-sessions", "Initial prompt"),
+
+		chromedp.Click("#completed-sessions .session-item", chromedp.ByQuery),
 		waitTextContains("#detail-title", "Initial prompt"),
+
+		chromedp.SetValue("#followup-prompt", "Add regression tests", chromedp.ByQuery),
+		chromedp.Click("#followup-submit", chromedp.ByQuery),
+		waitToastContains("Queued run"),
+
+		chromedp.Click("#detail-stop", chromedp.ByQuery),
+		waitToastContains("Cancel requested"),
+
+		chromedp.Click("#detail-open", chromedp.ByQuery),
+		waitToastContains("Opened in"),
+
+		chromedp.Click("#detail-rerun", chromedp.ByQuery),
+		waitToastContains("Queued re-run"),
 
 		chromedp.Click("#show-new", chromedp.ByQuery),
 
 		chromedp.SetValue("#new-prompt", "Implement desktop smoke flow", chromedp.ByQuery),
 		chromedp.Click("#new-submit", chromedp.ByQuery),
-		waitTextContains("#new-status", "Queued session"),
+		waitToastContains("Queued session"),
 		waitTextContains("#running-sessions", "Implement desktop smoke flow"),
 
-		chromedp.Click("#running-sessions .session-item", chromedp.ByQuery),
-		waitTextContains("#detail-title", "Implement desktop smoke flow"),
-
-		chromedp.SetValue("#followup-prompt", "Add regression tests", chromedp.ByQuery),
-		chromedp.Click("#followup-submit", chromedp.ByQuery),
-		waitTextContains("#followup-status", "Queued run"),
-
-		chromedp.Click("#detail-rerun", chromedp.ByQuery),
-		waitTextContains("#followup-status", "Queued re-run"),
-
-		chromedp.Click("#detail-stop", chromedp.ByQuery),
-		waitTextContains("#followup-status", "Cancel requested"),
-
-		chromedp.Click("#detail-open", chromedp.ByQuery),
-		waitTextContains("#followup-status", "Opened in"),
-
 		chromedp.Click("#show-settings", chromedp.ByQuery),
-		chromedp.Click("#discover-btn", chromedp.ByQuery),
-		chromedp.WaitVisible("#repo-0", chromedp.ByQuery),
-		chromedp.Click("#repo-0", chromedp.ByQuery),
-		chromedp.Click("#import-btn", chromedp.ByQuery),
-		waitTextContains("#repos-status", "Imported"),
+		chromedp.WaitVisible("#settings-save", chromedp.ByQuery),
 
-		chromedp.SetValue("#settings-prefix", "team", chromedp.ByQuery),
-		chromedp.SetValue("#settings-pat", "ghp_mock_token", chromedp.ByQuery),
-		chromedp.Click("#settings-submit", chromedp.ByQuery),
-		waitTextContains("#settings-status", "Saved"),
+		chromedp.Click("#settings-discover", chromedp.ByQuery),
+		waitToastContains("Found"),
+
+		chromedp.Click("#settings-import", chromedp.ByQuery),
+		waitToastContains("Imported"),
+
+		chromedp.SetValue("#settings-branch-prefix", "team", chromedp.ByQuery),
+		chromedp.SetValue("#settings-github-pat", "ghp_mock_token", chromedp.ByQuery),
+		chromedp.Click("#settings-save", chromedp.ByQuery),
+		waitToastContains("Settings saved"),
 	)
 	if err != nil {
 		t.Fatalf("desktop e2e flow failed: %v", err)
@@ -520,35 +521,31 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func newFrontendHarnessServer(t *testing.T, apiBaseURL string) *httptest.Server {
 	t.Helper()
 
-	root := filepath.Join("frontend")
-	indexRaw, err := os.ReadFile(filepath.Join(root, "index.html"))
-	if err != nil {
-		t.Fatalf("read frontend index failed: %v", err)
-	}
-	appRaw, err := os.ReadFile(filepath.Join(root, "app.js"))
-	if err != nil {
-		t.Fatalf("read frontend app.js failed: %v", err)
-	}
-	cssRaw, err := os.ReadFile(filepath.Join(root, "styles.css"))
-	if err != nil {
-		t.Fatalf("read frontend styles failed: %v", err)
+	// Serve the Vite build output directory with API base URL injected into index.html.
+	distDir := filepath.Join("frontend", "dist")
+	if _, err := os.Stat(distDir); err != nil {
+		t.Fatalf("dist directory not found – run 'npm run build' in frontend first: %v", err)
 	}
 
-	inject := "<script>window.__FOG_API_BASE_URL__ = " + strconv.Quote(apiBaseURL) + ";</script>\n  <script src=\"app.js\"></script>"
-	index := strings.Replace(string(indexRaw), "<script src=\"app.js\"></script>", inject, 1)
+	indexRaw, err := os.ReadFile(filepath.Join(distDir, "index.html"))
+	if err != nil {
+		t.Fatalf("read frontend dist/index.html failed: %v", err)
+	}
+
+	// Inject the mock API base URL before the first <script tag.
+	injectScript := `<script>window.__FOG_API_BASE_URL__ = ` + strconv.Quote(apiBaseURL) + `;</script>`
+	index := strings.Replace(string(indexRaw), "<script", injectScript+"\n<script", 1)
+
+	fs := http.FileServer(http.Dir(distDir))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write([]byte(index))
-	})
-	mux.HandleFunc("/app.js", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
-		_, _ = w.Write(appRaw)
-	})
-	mux.HandleFunc("/styles.css", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/css; charset=utf-8")
-		_, _ = w.Write(cssRaw)
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_, _ = w.Write([]byte(index))
+			return
+		}
+		fs.ServeHTTP(w, r)
 	})
 
 	return httptest.NewServer(mux)
@@ -573,6 +570,31 @@ func waitTextContains(selector, substring string) chromedp.Action {
 			case <-ctx.Done():
 				return ctx.Err()
 			case <-time.After(120 * time.Millisecond):
+			}
+		}
+	})
+}
+
+func waitToastContains(substring string) chromedp.Action {
+	return chromedp.ActionFunc(func(ctx context.Context) error {
+		// svelte-sonner renders toasts as <li data-sonner-toast> inside an <ol data-sonner-toaster>.
+		deadline := time.Now().Add(12 * time.Second)
+		for {
+			var out string
+			err := chromedp.Run(ctx, chromedp.Text("[data-sonner-toaster]", &out, chromedp.ByQuery))
+			if err == nil && strings.Contains(out, substring) {
+				return nil
+			}
+			if time.Now().After(deadline) {
+				if err != nil {
+					return fmt.Errorf("waitToastContains: %w (looking for %q)", err, substring)
+				}
+				return fmt.Errorf("waitToastContains: toast text %q does not include %q", out, substring)
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(150 * time.Millisecond):
 			}
 		}
 	})
