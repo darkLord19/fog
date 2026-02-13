@@ -8,7 +8,7 @@ This guide covers automated and manual testing for all major components.
 - Git
 - Optional (for full feature tests):
   - `gh` (GitHub CLI) for PR creation flows
-  - `cursor-agent`, `claude`, or `aider`
+  - `cursor-agent`, `claude`/`claude-code`, `gemini`, or `aider`
   - Slack app credentials for live Slack tests
 
 ## 1. Automated tests
@@ -157,7 +157,11 @@ curl -X POST http://localhost:8080/api/sessions/<session_id>/runs \
   -H "Content-Type: application/json" \
   -d '{"prompt":"Follow up: add tests"}'
 curl http://localhost:8080/api/sessions/<session_id>/runs/<run_id>/events
+curl http://localhost:8080/api/sessions/<session_id>/runs/<run_id>/stream
 curl -X POST http://localhost:8080/api/sessions/<session_id>/cancel
+curl -X POST http://localhost:8080/api/sessions/<session_id>/fork \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"Continue this in a new branch","async":true}'
 curl http://localhost:8080/api/sessions/<session_id>/diff
 curl -X POST http://localhost:8080/api/sessions/<session_id>/open
 ```
@@ -165,8 +169,10 @@ curl -X POST http://localhost:8080/api/sessions/<session_id>/open
 Expected checks:
 - initial session create returns `session_id` and `run_id`
 - follow-up call returns a new `run_id` for the same `session_id`
-- follow-up/re-run allocates a new run worktree path
+- follow-up/re-run keeps the same session worktree path
+- fork call returns a new `session_id`/`run_id` and allocates a new worktree
 - run events include setup/ai/commit phases and terminal state
+- `ai_stream` events appear while AI is running (chunk-level output)
 - cancel endpoint marks latest run as `CANCELLED`
 - diff endpoint returns base-vs-branch diff for latest run worktree
 
@@ -189,7 +195,8 @@ Expected checks:
 - onboarding accepts GitHub PAT + default tool and persists both
 - new session + follow-up actions work against local fogd APIs
 - stop action cancels the latest active run
-- re-run creates a new run/worktree in the same session branch
+- re-run keeps working in the same session worktree
+- fork action creates a new session/branch/worktree
 - detail tabs render timeline/diff/logs/stats
 
 ## 6.1 Desktop frontend E2E smoke tests (headless)

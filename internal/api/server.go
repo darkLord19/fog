@@ -291,7 +291,7 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func detectAvailableTools() []string {
-	names := []string{"cursor", "claude", "aider"}
+	names := ai.AvailableToolNames()
 	out := make([]string, 0, len(names))
 	for _, name := range names {
 		if isToolAvailable(name) {

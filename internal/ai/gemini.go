@@ -6,31 +6,31 @@ import (
 	"strings"
 )
 
-// Cursor represents the Cursor AI tool.
-type Cursor struct{}
+// Gemini represents the Gemini CLI tool.
+type Gemini struct{}
 
-func (c *Cursor) Name() string {
-	return "cursor"
+func (g *Gemini) Name() string {
+	return "gemini"
 }
 
-func (c *Cursor) IsAvailable() bool {
-	return cursorAgentCommand() != ""
+func (g *Gemini) IsAvailable() bool {
+	return geminiCommand() != ""
 }
 
-func (c *Cursor) Execute(ctx context.Context, workdir, prompt string) (*Result, error) {
-	return c.ExecuteStream(ctx, ExecuteRequest{
+func (g *Gemini) Execute(ctx context.Context, workdir, prompt string) (*Result, error) {
+	return g.ExecuteStream(ctx, ExecuteRequest{
 		Workdir: workdir,
 		Prompt:  prompt,
 	}, nil)
 }
 
-func (c *Cursor) ExecuteStream(ctx context.Context, req ExecuteRequest, onChunk func(string)) (*Result, error) {
-	cmdName := cursorAgentCommand()
+func (g *Gemini) ExecuteStream(ctx context.Context, req ExecuteRequest, onChunk func(string)) (*Result, error) {
+	cmdName := geminiCommand()
 	if cmdName == "" {
-		return nil, fmt.Errorf("cursor-agent not available")
+		return nil, fmt.Errorf("gemini CLI not available")
 	}
 
-	streamArgs := buildCursorHeadlessArgs(req, true)
+	streamArgs := buildGeminiHeadlessArgs(req, true)
 	streamOutput, conversationID, streamErr := runJSONStreamingCommand(ctx, req.Workdir, cmdName, streamArgs, onChunk)
 	if streamErr == nil {
 		return &Result{
@@ -41,7 +41,7 @@ func (c *Cursor) ExecuteStream(ctx context.Context, req ExecuteRequest, onChunk 
 	}
 
 	if looksLikeUnsupportedFlag(streamOutput) {
-		fallbackArgs := buildCursorHeadlessArgs(req, false)
+		fallbackArgs := buildGeminiHeadlessArgs(req, false)
 		plainOutput, plainErr := runPlainStreamingCommand(ctx, req.Workdir, cmdName, fallbackArgs, onChunk)
 		return &Result{
 			Success:        plainErr == nil,
@@ -59,15 +59,17 @@ func (c *Cursor) ExecuteStream(ctx context.Context, req ExecuteRequest, onChunk 
 	}, streamErr
 }
 
-func cursorAgentCommand() string {
-	if commandExists("cursor-agent") {
-		return "cursor-agent"
+func geminiCommand() string {
+	for _, name := range []string{"gemini", "gemini-cli"} {
+		if commandExists(name) {
+			return name
+		}
 	}
 	return ""
 }
 
-func buildCursorHeadlessArgs(req ExecuteRequest, withStreamJSON bool) []string {
-	args := []string{"-p", "--force"}
+func buildGeminiHeadlessArgs(req ExecuteRequest, withStreamJSON bool) []string {
+	args := make([]string, 0, 8)
 	if model := strings.TrimSpace(req.Model); model != "" {
 		args = append(args, "--model", model)
 	}
@@ -77,6 +79,6 @@ func buildCursorHeadlessArgs(req ExecuteRequest, withStreamJSON bool) []string {
 	if withStreamJSON {
 		args = append(args, "--output-format", "stream-json")
 	}
-	args = append(args, strings.TrimSpace(req.Prompt))
+	args = append(args, "-p", strings.TrimSpace(req.Prompt))
 	return args
 }

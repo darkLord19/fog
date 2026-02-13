@@ -253,3 +253,81 @@ func TestCancelSessionLatestRunCancelsActiveLatestRun(t *testing.T) {
 		t.Fatal("expected cancel function to be called")
 	}
 }
+
+func TestLookupConversationIDFindsLatestPriorRunSessionID(t *testing.T) {
+	r, err := New(t.TempDir(), t.TempDir())
+	if err != nil {
+		t.Fatalf("new runner failed: %v", err)
+	}
+	st, err := state.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("new state store failed: %v", err)
+	}
+	defer func() { _ = st.Close() }()
+	r.SetStateStore(st)
+
+	if _, err := st.UpsertRepo(state.Repo{
+		Name:             "acme/api",
+		URL:              "https://github.com/acme/api.git",
+		Host:             "github.com",
+		Owner:            "acme",
+		Repo:             "api",
+		BarePath:         "/tmp/acme-api/repo.git",
+		BaseWorktreePath: "/tmp/acme-api/base",
+		DefaultBranch:    "main",
+	}); err != nil {
+		t.Fatalf("upsert repo failed: %v", err)
+	}
+
+	now := time.Now().UTC()
+	if err := st.CreateSession(state.Session{
+		ID:           "session-1",
+		RepoName:     "acme/api",
+		Branch:       "fog/test",
+		WorktreePath: "/tmp/worktree",
+		Tool:         "claude",
+		Status:       "COMPLETED",
+		Busy:         false,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}); err != nil {
+		t.Fatalf("create session failed: %v", err)
+	}
+
+	if err := st.CreateRun(state.Run{
+		ID:           "run-1",
+		SessionID:    "session-1",
+		Prompt:       "first run",
+		WorktreePath: "/tmp/worktree",
+		State:        "COMPLETED",
+		CreatedAt:    now.Add(-2 * time.Minute),
+		UpdatedAt:    now.Add(-2 * time.Minute),
+	}); err != nil {
+		t.Fatalf("create run-1 failed: %v", err)
+	}
+	if err := st.AppendRunEvent(state.RunEvent{
+		RunID: "run-1",
+		Type:  "ai_session",
+		Data:  "session-token-1",
+		TS:    now.Add(-2 * time.Minute),
+	}); err != nil {
+		t.Fatalf("append run-1 event failed: %v", err)
+	}
+
+	if err := st.CreateRun(state.Run{
+		ID:           "run-2",
+		SessionID:    "session-1",
+		Prompt:       "second run",
+		WorktreePath: "/tmp/worktree",
+		State:        "CREATED",
+		CreatedAt:    now.Add(-1 * time.Minute),
+		UpdatedAt:    now.Add(-1 * time.Minute),
+	}); err != nil {
+		t.Fatalf("create run-2 failed: %v", err)
+	}
+
+	got := r.lookupConversationID("session-1", "run-2")
+	if got != "session-token-1" {
+		t.Fatalf("unexpected conversation id: got %q want %q", got, "session-token-1")
+	}
+}

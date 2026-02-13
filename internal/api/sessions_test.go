@@ -99,6 +99,25 @@ func TestHandleSessionOpenRoute(t *testing.T) {
 	}
 }
 
+func TestHandleSessionStreamRoute(t *testing.T) {
+	srv := newTestServer(t)
+	seedSessionFixture(t, srv)
+	if err := srv.stateStore.CompleteRun("run-1", "COMPLETED", "", "", ""); err != nil {
+		t.Fatalf("complete run failed: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions/session-1/runs/run-1/stream", nil)
+	w := httptest.NewRecorder()
+
+	srv.handleSessionDetail(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: got %d want %d body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "event: done") {
+		t.Fatalf("expected done event in stream output, got: %s", w.Body.String())
+	}
+}
+
 func TestHandleCreateFollowUpRunRequiresPrompt(t *testing.T) {
 	srv := newTestServer(t)
 	req := httptest.NewRequest(http.MethodPost, "/api/sessions/abc/runs", bytes.NewBufferString(`{}`))

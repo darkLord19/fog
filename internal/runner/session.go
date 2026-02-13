@@ -8,6 +8,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/darkLord19/foglet/internal/ai"
@@ -630,9 +631,27 @@ func (r *Runner) executeSessionRun(session state.Session, run state.Run, opts se
 		Type:    "ai_start",
 		Message: "Running AI tool",
 	})
-	aiOutput, err := r.runTool(ctx, session.Tool, run.WorktreePath, opts.Prompt)
+	streamWriter := newRunStreamWriter(r.state, run.ID)
+	conversationID := r.lookupConversationID(session.ID, run.ID)
+	aiOutput, nextConversationID, err := r.runToolWithOptions(
+		ctx,
+		session.Tool,
+		run.WorktreePath,
+		opts.Prompt,
+		session.Model,
+		conversationID,
+		streamWriter.Append,
+	)
+	streamWriter.Flush()
 	if err != nil {
 		return fail("ai", err)
+	}
+	if nextConversationID != "" {
+		_ = r.state.AppendRunEvent(state.RunEvent{
+			RunID: run.ID,
+			Type:  "ai_session",
+			Data:  nextConversationID,
+		})
 	}
 	if strings.TrimSpace(aiOutput) != "" {
 		_ = r.state.AppendRunEvent(state.RunEvent{
@@ -704,22 +723,36 @@ func (r *Runner) executeSessionRun(session state.Session, run state.Run, opts se
 }
 
 func (r *Runner) runTool(ctx context.Context, toolName, workdir, prompt string) (string, error) {
+	output, _, err := r.runToolWithOptions(ctx, toolName, workdir, prompt, "", "", nil)
+	return output, err
+}
+
+func (r *Runner) runToolWithOptions(
+	ctx context.Context,
+	toolName, workdir, prompt, model, conversationID string,
+	onChunk func(string),
+) (string, string, error) {
 	tool, err := ai.GetTool(toolName)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if !tool.IsAvailable() {
-		return "", fmt.Errorf("AI tool %s not available", toolName)
+		return "", "", fmt.Errorf("AI tool %s not available", toolName)
 	}
 
-	result, err := tool.Execute(ctx, workdir, prompt)
+	result, err := ai.ExecuteWithOptionalStream(ctx, tool, ai.ExecuteRequest{
+		Workdir:        workdir,
+		Prompt:         prompt,
+		Model:          model,
+		ConversationID: conversationID,
+	}, onChunk)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if !result.Success {
-		return "", fmt.Errorf("AI execution failed: %s", result.Output)
+		return "", "", fmt.Errorf("AI execution failed: %s", result.Output)
 	}
-	return strings.TrimSpace(result.Output), nil
+	return strings.TrimSpace(result.Output), strings.TrimSpace(result.ConversationID), nil
 }
 
 func (r *Runner) runShell(ctx context.Context, workdir, cmdline string) error {
@@ -847,6 +880,90 @@ func normalizeCommitMessage(raw string) string {
 		msg = strings.TrimSpace(msg)
 	}
 	return truncate(msg, 5000)
+}
+
+func (r *Runner) lookupConversationID(sessionID, currentRunID string) string {
+	if r.state == nil {
+		return ""
+	}
+	runs, err := r.state.ListRuns(sessionID)
+	if err != nil {
+		return ""
+	}
+	for _, run := range runs {
+		if strings.TrimSpace(run.ID) == strings.TrimSpace(currentRunID) {
+			continue
+		}
+		events, err := r.state.ListRunEvents(run.ID, 200)
+		if err != nil {
+			continue
+		}
+		for i := len(events) - 1; i >= 0; i-- {
+			event := events[i]
+			if strings.TrimSpace(event.Type) != "ai_session" {
+				continue
+			}
+			if sessionID := strings.TrimSpace(event.Data); sessionID != "" {
+				return sessionID
+			}
+		}
+	}
+	return ""
+}
+
+type runStreamWriter struct {
+	mu        sync.Mutex
+	store     *state.Store
+	runID     string
+	buffer    strings.Builder
+	lastFlush time.Time
+}
+
+func newRunStreamWriter(store *state.Store, runID string) *runStreamWriter {
+	return &runStreamWriter{
+		store:     store,
+		runID:     runID,
+		lastFlush: time.Now().UTC(),
+	}
+}
+
+func (w *runStreamWriter) Append(chunk string) {
+	chunk = strings.TrimSpace(chunk)
+	if chunk == "" {
+		return
+	}
+
+	w.mu.Lock()
+	w.buffer.WriteString(chunk)
+	w.buffer.WriteByte('\n')
+	shouldFlush := w.buffer.Len() >= 1000 || time.Since(w.lastFlush) >= 600*time.Millisecond
+	w.mu.Unlock()
+	if shouldFlush {
+		w.Flush()
+	}
+}
+
+func (w *runStreamWriter) Flush() {
+	if w == nil || w.store == nil {
+		return
+	}
+
+	w.mu.Lock()
+	payload := strings.TrimSpace(w.buffer.String())
+	w.buffer.Reset()
+	if payload != "" {
+		w.lastFlush = time.Now().UTC()
+	}
+	w.mu.Unlock()
+	if payload == "" {
+		return
+	}
+
+	_ = w.store.AppendRunEvent(state.RunEvent{
+		RunID: w.runID,
+		Type:  "ai_stream",
+		Data:  truncate(payload, 8000),
+	})
 }
 
 func fallbackCommitMessage(prompt string) string {

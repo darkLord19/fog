@@ -130,6 +130,9 @@ func (s *Server) handleSessionDetail(w http.ResponseWriter, r *http.Request) {
 		case len(parts) == 4 && parts[3] == "events" && r.Method == http.MethodGet:
 			s.listRunEvents(w, r, sessionID, parts[2])
 			return
+		case len(parts) == 4 && parts[3] == "stream" && r.Method == http.MethodGet:
+			s.streamRunEvents(w, r, sessionID, parts[2])
+			return
 		}
 	}
 	if len(parts) == 2 {
@@ -479,6 +482,100 @@ func (s *Server) listRunEvents(w http.ResponseWriter, r *http.Request, sessionID
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(events)
+}
+
+func (s *Server) streamRunEvents(w http.ResponseWriter, r *http.Request, sessionID, runID string) {
+	session, found, err := s.runner.GetSession(sessionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !found {
+		http.Error(w, "session not found", http.StatusNotFound)
+		return
+	}
+
+	runs, err := s.runner.ListSessionRuns(session.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	allowed := false
+	for _, run := range runs {
+		if run.ID == runID {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		http.Error(w, "run not found in session", http.StatusNotFound)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	cursor := int64(0)
+	if raw := strings.TrimSpace(r.URL.Query().Get("cursor")); raw != "" {
+		if parsed, err := strconv.ParseInt(raw, 10, 64); err == nil && parsed > 0 {
+			cursor = parsed
+		}
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	ticker := time.NewTicker(700 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		events, err := s.runner.ListRunEvents(runID, 2000)
+		if err != nil {
+			fmt.Fprintf(w, "event: error\ndata: %q\n\n", err.Error())
+			flusher.Flush()
+			return
+		}
+
+		for _, event := range events {
+			if event.ID <= cursor {
+				continue
+			}
+			payload, _ := json.Marshal(event)
+			fmt.Fprintf(w, "id: %d\n", event.ID)
+			fmt.Fprintf(w, "event: run_event\n")
+			fmt.Fprintf(w, "data: %s\n\n", payload)
+			cursor = event.ID
+		}
+		flusher.Flush()
+
+		run, found, err := s.stateStore.GetRun(runID)
+		if err == nil && found && isTerminalRunState(run.State) {
+			fmt.Fprintf(w, "event: done\ndata: %q\n\n", run.State)
+			flusher.Flush()
+			return
+		}
+
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func isTerminalRunState(stateName string) bool {
+	switch strings.TrimSpace(stateName) {
+	case "COMPLETED", "FAILED", "CANCELLED":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Server) cancelSessionRun(w http.ResponseWriter, sessionID string) {

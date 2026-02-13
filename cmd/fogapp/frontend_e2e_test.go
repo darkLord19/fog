@@ -120,6 +120,7 @@ func TestDesktopFrontendSmokeFlows(t *testing.T) {
 type e2eStats struct {
 	createSessionCount int
 	followupCount      int
+	forkCount          int
 	discoverCount      int
 	importCount        int
 	settingsPutCount   int
@@ -391,6 +392,52 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		if len(parts) == 2 && parts[1] == "fork" && r.Method == http.MethodPost {
+			m.counters.forkCount++
+			var in map[string]interface{}
+			_ = json.NewDecoder(r.Body).Decode(&in)
+			prompt := "Forked session"
+			if v, ok := in["prompt"].(string); ok && strings.TrimSpace(v) != "" {
+				prompt = strings.TrimSpace(v)
+			}
+
+			id := "session-" + strconv.Itoa(len(m.sessions)+1)
+			runID := "run-" + strconv.Itoa(len(m.events)+1)
+			now := time.Now().UTC().Format(time.RFC3339)
+			session := map[string]interface{}{
+				"id":            id,
+				"repo_name":     "owner/repo",
+				"branch":        "fog/forked-session",
+				"worktree_path": "/tmp/owner-repo/worktrees/" + id + "-" + runID,
+				"tool":          "claude",
+				"status":        "CREATED",
+				"busy":          true,
+				"autopr":        false,
+				"pr_url":        "",
+				"updated_at":    now,
+			}
+			m.sessions = append([]map[string]interface{}{session}, m.sessions...)
+			m.runs[id] = []map[string]interface{}{
+				{
+					"id":            runID,
+					"session_id":    id,
+					"prompt":        prompt,
+					"worktree_path": "/tmp/owner-repo/worktrees/" + id + "-" + runID,
+					"state":         "CREATED",
+					"created_at":    now,
+					"updated_at":    now,
+				},
+			}
+			m.events[runID] = []map[string]interface{}{
+				{"id": 1, "run_id": runID, "ts": now, "type": "fork", "message": "fork started"},
+			}
+			writeJSON(http.StatusAccepted, map[string]interface{}{
+				"session_id": id,
+				"run_id":     runID,
+				"status":     "accepted",
+			})
+			return
+		}
 		if len(parts) == 2 && parts[1] == "cancel" && r.Method == http.MethodPost {
 			m.counters.cancelCount++
 			sid := parts[0]
@@ -450,6 +497,19 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if len(parts) == 4 && parts[1] == "runs" && parts[3] == "events" && r.Method == http.MethodGet {
 			runID := parts[2]
 			writeJSON(http.StatusOK, m.events[runID])
+			return
+		}
+		if len(parts) == 4 && parts[1] == "runs" && parts[3] == "stream" && r.Method == http.MethodGet {
+			runID := parts[2]
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusOK)
+			if events := m.events[runID]; len(events) > 0 {
+				payload, _ := json.Marshal(events[len(events)-1])
+				_, _ = w.Write([]byte("event: run_event\n"))
+				_, _ = w.Write([]byte("data: " + string(payload) + "\n\n"))
+			}
+			_, _ = w.Write([]byte("event: done\n"))
+			_, _ = w.Write([]byte("data: \"COMPLETED\"\n\n"))
 			return
 		}
 	}

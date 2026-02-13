@@ -29,8 +29,11 @@ This document reflects the currently implemented product surface in this reposit
   - `fog app` launches desktop app binary (`fogapp`) when installed.
 - Session execution groundwork is implemented in the runner:
   - create session (one branch, one run worktree)
-  - follow-up and re-run execution in new worktrees on the same branch
+  - follow-up and re-run execution in the same session worktree
+  - explicit fork API creates a new branch/worktree from an existing session
   - run event logging in SQLite
+  - live AI chunk streaming persisted as run events
+  - per-session tool conversation ID reuse when adapters expose it
   - real process cancellation for active runs
   - auto-commit with AI-generated commit message (fallback to deterministic message)
   - push only when auto-PR is enabled (or session already has PR)
@@ -48,6 +51,8 @@ This document reflects the currently implemented product surface in this reposit
   - `GET /api/sessions/{id}/runs`
   - `POST /api/sessions/{id}/runs`
   - `GET /api/sessions/{id}/runs/{run_id}/events`
+  - `GET /api/sessions/{id}/runs/{run_id}/stream`
+  - `POST /api/sessions/{id}/fork`
   - `POST /api/sessions/{id}/cancel`
   - `GET /api/sessions/{id}/diff`
   - `POST /api/sessions/{id}/open`
@@ -89,6 +94,7 @@ This document reflects the currently implemented product surface in this reposit
 - Session API defaults:
   - `POST /api/sessions` runs async by default and returns session/run ids
   - `POST /api/sessions/{id}/runs` runs async by default
+  - `POST /api/sessions/{id}/fork` runs async by default
   - branch name is generated from `branch_prefix` + prompt slug when `branch_name` is omitted
 
 ### `fogcloud` (distribution control plane)
@@ -188,6 +194,7 @@ State details:
 
 Supported adapters:
 - `claude`
+- `gemini`
 - `aider`
 - `cursor` (headless via `cursor-agent`)
 

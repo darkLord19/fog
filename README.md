@@ -10,7 +10,7 @@ Fog orchestrates AI coding tasks using existing AI tools in isolated Git worktre
 
 Fog is a **local-first developer system** that:
 - Runs AI coding tasks in **isolated worktrees**
-- Supports **Cursor, Claude Code, Aider**
+- Supports **Cursor, Claude Code, Gemini CLI, Aider**
 - Provides **CLI, Desktop App, and HTTP API** interfaces
 - Creates **clean PRs** automatically
 - Executes tasks **asynchronously**
@@ -131,7 +131,7 @@ fog repos import
 - 🔒 **Safe operations** - Never lose uncommitted work
 
 ### fog (AI Orchestration)
-- 🤖 **Multi-AI** - Cursor, Claude Code, Aider support
+- 🤖 **Multi-AI** - Cursor, Claude Code, Gemini CLI, Aider support
 - 🌳 **Isolation** - Each task in separate worktree
 - ✅ **Validation** - Run tests after AI
 - 📝 **Auto-commit** - Commit changes automatically
@@ -146,16 +146,19 @@ fog repos import
 - 📢 **Notifications** - Completion alerts
 - 🔌 **Extensible** - Easy to add integrations
 - ✋ **Real stop semantics** - cancels active process group for current run
-- 🌳 **Per-run isolation** - every follow-up/re-run gets a new worktree
+- 🌳 **Session worktree model** - follow-ups and re-runs stay in the session worktree
+- 🌿 **Explicit fork flow** - forks create a new branch/worktree only when requested
+- 📡 **Live run streaming** - SSE endpoint for token/chunk-level run events
 
 ### Desktop Session UX (current)
 - Session title is derived from the first line of the prompt.
 - Sidebar separates running and completed sessions.
 - Task detail auto-follows the latest run for timeline/logs/diff.
 - `Stop` cancels only the latest active run.
-- `Re-run` schedules a new run in a separate worktree on the same branch.
+- `Re-run` and follow-ups reuse the session worktree and tool conversation when available.
+- `Fork` creates a new branch/worktree with an auto-generated branch name from prompt.
 - Diff tab shows changes since base branch (`base...session-branch`).
-- `Open in Editor` opens the latest run worktree.
+- `Open in Editor` opens the latest session worktree.
 
 ## 📚 Documentation
 
@@ -212,6 +215,7 @@ curl -X POST http://localhost:8080/api/tasks/create \
 | Tool | Status | CLI | Notes |
 |------|--------|-----|-------|
 | Claude Code | ✅ | Yes | Full support |
+| Gemini CLI | ✅ | Yes | Headless + stream-json |
 | Aider | ✅ | Yes | Full support |
 | Cursor | ✅ | Yes | Headless via `cursor-agent` |
 
@@ -251,6 +255,8 @@ GET /api/sessions/{id}
 GET /api/sessions/{id}/runs
 POST /api/sessions/{id}/runs
 GET /api/sessions/{id}/runs/{run_id}/events
+GET /api/sessions/{id}/runs/{run_id}/stream
+POST /api/sessions/{id}/fork
 POST /api/sessions/{id}/cancel
 GET /api/sessions/{id}/diff
 POST /api/sessions/{id}/open

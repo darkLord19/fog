@@ -19,6 +19,9 @@
     selectedTab: "timeline",
     view: "new",
     autoFollowLatest: true,
+    streamSource: null,
+    streamSessionID: "",
+    streamRunID: "",
     detail: {
       session: null,
       runs: [],
@@ -129,6 +132,9 @@
 
   function setView(viewName) {
     state.view = viewName;
+    if (viewName !== "detail") {
+      closeRunStream();
+    }
     ["new", "detail", "settings"].forEach(function (name) {
       var panel = $("view-" + name);
       if (!panel) return;
@@ -248,6 +254,7 @@
       $("tab-stats").innerHTML = "No stats available.";
       $("detail-stop").disabled = true;
       $("detail-rerun").disabled = true;
+      $("detail-fork").disabled = true;
       $("detail-open").disabled = true;
       return;
     }
@@ -264,6 +271,7 @@
     var canStop = !!(session.busy && latest && activeStates[latest.state]);
     $("detail-stop").disabled = !canStop;
     $("detail-rerun").disabled = !latest;
+    $("detail-fork").disabled = !!session.busy;
     $("detail-open").disabled = false;
 
     renderTimelineTab();
@@ -367,6 +375,7 @@
 
   async function loadDetailSession() {
     if (!state.selectedSessionID) {
+      closeRunStream();
       state.detail = { session: null, runs: [], events: [], diff: null, diffError: "" };
       renderDetail();
       return;
@@ -377,6 +386,7 @@
     state.detail.runs = detail && detail.runs ? detail.runs : [];
 
     if (!state.detail.session) {
+      closeRunStream();
       state.detail.events = [];
       state.detail.diff = null;
       state.detail.diffError = "Session not found.";
@@ -409,6 +419,7 @@
     }
 
     renderDetail();
+    openRunStream();
   }
 
   async function selectSession(sessionID, followLatest) {
@@ -425,6 +436,7 @@
     if (state.selectedSessionID) {
       var found = state.sessions.some(function (session) { return session.id === state.selectedSessionID; });
       if (!found) {
+        closeRunStream();
         state.selectedSessionID = "";
         state.selectedRunID = "";
       }
@@ -592,6 +604,31 @@
     }
   }
 
+  async function onForkSession() {
+    setStatus("followup-status", "", "");
+    try {
+      if (!state.selectedSessionID) throw new Error("Select a session first");
+      var seed = $("followup-prompt").value.trim();
+      var prompt = window.prompt("Fork prompt", seed);
+      if (prompt === null) return;
+      prompt = String(prompt || "").trim();
+      if (!prompt) throw new Error("Fork prompt is required");
+
+      var out = await fetchJSON("/api/sessions/" + encodeURIComponent(state.selectedSessionID) + "/fork", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: prompt, async: true })
+      });
+      setStatus("followup-status", "Queued fork session " + out.session_id, "ok");
+      await refreshSessions();
+      if (out.session_id) {
+        await selectSession(out.session_id, true);
+      }
+    } catch (err) {
+      setStatus("followup-status", "Fork failed: " + err.message, "error");
+    }
+  }
+
   async function onSaveSettings(event) {
     event.preventDefault();
     setStatus("settings-status", "", "");
@@ -689,6 +726,12 @@
       });
     });
 
+    $("detail-fork").addEventListener("click", function () {
+      onForkSession().catch(function (err) {
+        setStatus("followup-status", "Fork failed: " + err.message, "error");
+      });
+    });
+
     $("detail-open").addEventListener("click", function () {
       onOpenInEditor().catch(function (err) {
         setStatus("followup-status", "Open failed: " + err.message, "error");
@@ -740,4 +783,83 @@
     $("daemon-badge").textContent = "fogd: unavailable";
     setStatus("new-status", "Initialization failed: " + err.message, "error");
   });
+
+  function closeRunStream() {
+    if (state.streamSource) {
+      state.streamSource.close();
+      state.streamSource = null;
+    }
+    state.streamSessionID = "";
+    state.streamRunID = "";
+  }
+
+  function latestEventID() {
+    if (!state.detail.events || !state.detail.events.length) return 0;
+    var last = state.detail.events[state.detail.events.length - 1];
+    return Number(last.id || 0) || 0;
+  }
+
+  function appendRunEvent(event) {
+    if (!event) return;
+    var id = Number(event.id || 0) || 0;
+    if (!id) return;
+    var exists = (state.detail.events || []).some(function (current) {
+      return Number(current.id || 0) === id;
+    });
+    if (exists) return;
+    state.detail.events.push(event);
+    state.detail.events.sort(function (a, b) {
+      return (Number(a.id || 0) || 0) - (Number(b.id || 0) || 0);
+    });
+  }
+
+  function openRunStream() {
+    var run = selectedRun();
+    if (!run || !state.selectedSessionID || !state.selectedRunID) {
+      closeRunStream();
+      return;
+    }
+    if (!activeStates[run.state]) {
+      closeRunStream();
+      return;
+    }
+    if (
+      state.streamSource &&
+      state.streamSessionID === state.selectedSessionID &&
+      state.streamRunID === state.selectedRunID
+    ) {
+      return;
+    }
+
+    closeRunStream();
+
+    var cursor = latestEventID();
+    var streamURL =
+      state.apiBaseURL +
+      "/api/sessions/" + encodeURIComponent(state.selectedSessionID) +
+      "/runs/" + encodeURIComponent(state.selectedRunID) +
+      "/stream?cursor=" + encodeURIComponent(String(cursor));
+    var source = new EventSource(streamURL);
+
+    state.streamSource = source;
+    state.streamSessionID = state.selectedSessionID;
+    state.streamRunID = state.selectedRunID;
+
+    source.addEventListener("run_event", function (ev) {
+      try {
+        var payload = JSON.parse(ev.data);
+        appendRunEvent(payload);
+        renderDetail();
+      } catch (_) {}
+    });
+
+    source.addEventListener("done", function () {
+      closeRunStream();
+      refreshSessions().catch(function () {});
+    });
+
+    source.onerror = function () {
+      closeRunStream();
+    };
+  }
 })();
