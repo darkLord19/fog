@@ -3,8 +3,12 @@ package ai
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 )
 
 // Tool represents an AI coding tool
@@ -108,6 +112,81 @@ func normalizeToolName(name string) string {
 
 // commandExists checks if a command is available
 func commandExists(name string) bool {
-	_, err := exec.LookPath(name)
-	return err == nil
+	return commandPath(name) != ""
+}
+
+var commandPathCache sync.Map
+
+func commandPath(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ""
+	}
+	if cached, ok := commandPathCache.Load(name); ok {
+		if path, ok := cached.(string); ok {
+			return path
+		}
+	}
+
+	if path, err := exec.LookPath(name); err == nil && strings.TrimSpace(path) != "" {
+		commandPathCache.Store(name, path)
+		return path
+	}
+
+	for _, dir := range fallbackBinDirs() {
+		candidate := filepath.Join(dir, name)
+		info, err := os.Stat(candidate)
+		if err != nil || info.IsDir() {
+			continue
+		}
+		if runtime.GOOS == "windows" {
+			commandPathCache.Store(name, candidate)
+			return candidate
+		}
+		if info.Mode()&0o111 != 0 {
+			commandPathCache.Store(name, candidate)
+			return candidate
+		}
+	}
+
+	commandPathCache.Store(name, "")
+	return ""
+}
+
+func fallbackBinDirs() []string {
+	home, _ := os.UserHomeDir()
+	dirs := []string{
+		"/opt/homebrew/bin",
+		"/usr/local/bin",
+		"/opt/homebrew/sbin",
+		"/usr/local/sbin",
+	}
+	if home != "" {
+		dirs = append(dirs,
+			filepath.Join(home, ".local", "bin"),
+			filepath.Join(home, "bin"),
+			filepath.Join(home, ".cargo", "bin"),
+			filepath.Join(home, ".bun", "bin"),
+			filepath.Join(home, ".npm-global", "bin"),
+			filepath.Join(home, "Library", "pnpm"),
+		)
+		if matches, err := filepath.Glob(filepath.Join(home, ".nvm", "versions", "node", "*", "bin")); err == nil {
+			dirs = append(dirs, matches...)
+		}
+	}
+
+	seen := make(map[string]struct{}, len(dirs))
+	out := make([]string, 0, len(dirs))
+	for _, dir := range dirs {
+		dir = strings.TrimSpace(dir)
+		if dir == "" {
+			continue
+		}
+		if _, ok := seen[dir]; ok {
+			continue
+		}
+		seen[dir] = struct{}{}
+		out = append(out, dir)
+	}
+	return out
 }

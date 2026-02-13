@@ -28,6 +28,10 @@ func (a *Aider) ExecuteStream(ctx context.Context, req ExecuteRequest, onChunk f
 	if !a.IsAvailable() {
 		return nil, fmt.Errorf("aider not available")
 	}
+	cmdName := commandPath("aider")
+	if cmdName == "" {
+		return nil, fmt.Errorf("aider not available")
+	}
 
 	args := []string{"--yes"}
 	if model := strings.TrimSpace(req.Model); model != "" {
@@ -35,7 +39,7 @@ func (a *Aider) ExecuteStream(ctx context.Context, req ExecuteRequest, onChunk f
 	}
 	args = append(args, "--message", strings.TrimSpace(req.Prompt))
 
-	output, err := runPlainStreamingCommand(ctx, req.Workdir, "aider", args, onChunk)
+	output, err := runPlainStreamingCommand(ctx, req.Workdir, cmdName, args, onChunk)
 
 	result := &Result{
 		Success: err == nil,

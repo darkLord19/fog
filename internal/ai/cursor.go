@@ -60,10 +60,7 @@ func (c *Cursor) ExecuteStream(ctx context.Context, req ExecuteRequest, onChunk 
 }
 
 func cursorAgentCommand() string {
-	if commandExists("cursor-agent") {
-		return "cursor-agent"
-	}
-	return ""
+	return commandPath("cursor-agent")
 }
 
 func buildCursorHeadlessArgs(req ExecuteRequest, withStreamJSON bool) []string {

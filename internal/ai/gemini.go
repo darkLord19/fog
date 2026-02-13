@@ -61,8 +61,8 @@ func (g *Gemini) ExecuteStream(ctx context.Context, req ExecuteRequest, onChunk 
 
 func geminiCommand() string {
 	for _, name := range []string{"gemini", "gemini-cli"} {
-		if commandExists(name) {
-			return name
+		if path := commandPath(name); path != "" {
+			return path
 		}
 	}
 	return ""

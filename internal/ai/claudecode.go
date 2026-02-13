@@ -68,8 +68,8 @@ func (c *ClaudeCode) ExecuteStream(ctx context.Context, req ExecuteRequest, onCh
 }
 
 func claudeCommand() string {
-	if commandExists("claude") {
-		return "claude"
+	if path := commandPath("claude"); path != "" {
+		return path
 	}
-	return "claude-code"
+	return commandPath("claude-code")
 }
