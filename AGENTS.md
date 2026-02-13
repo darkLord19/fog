@@ -126,8 +126,11 @@ Primary endpoints used by desktop sessions:
 
 ## Desktop UI Notes
 
-Frontend lives in `cmd/fogapp/frontend/*` (plain HTML/CSS/JS embedded into Wails).
+Frontend lives in `cmd/fogapp/frontend/` — a Svelte 5 + Vite + TypeScript app using shadcn-svelte components.
+Source: `cmd/fogapp/frontend/src/`. Build output: `cmd/fogapp/frontend/dist/` (embedded into Wails binary).
 
+- Dev: `make fogapp-dev` runs Vite dev server + Wails
+- Build: `make fogapp-build` runs `npm install && npm run build`, then Go build
 - The UI uses polling for list/detail refresh.
 - Active runs also open an SSE stream to append events live.
 - The app ensures `fogd` is reachable; if not, it starts an embedded daemon.
@@ -140,7 +143,7 @@ Frontend lives in `cmd/fogapp/frontend/*` (plain HTML/CSS/JS embedded into Wails
 - Streaming process execution: `internal/proc/*`
 - State schema + encryption: `internal/state/*`
 - Local API routes: `internal/api/*`
-- Desktop UI: `cmd/fogapp/frontend/*`, desktop shell: `cmd/fogapp/*`
+- Desktop UI: `cmd/fogapp/frontend/src/`, desktop shell: `cmd/fogapp/*`
 
 ## Do / Don’t
 
@@ -242,7 +245,7 @@ Managed repos layout (default):
 - Session engine (follow-ups, fork, cancellation, run events): `internal/runner/session.go`
 - HTTP API endpoints: `internal/api/*`
 - State (SQLite schema, encryption): `internal/state/*`
-- Desktop UI: `cmd/fogapp/frontend/*` (plain HTML/CSS/JS embedded into Wails)
+- Desktop UI: `cmd/fogapp/frontend/src/` (Svelte 5 + Vite + TypeScript + shadcn-svelte, embedded into Wails)
 
 ## Development Commands
 
