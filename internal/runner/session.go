@@ -95,6 +95,51 @@ func (r *Runner) ContinueSessionAsync(sessionID, prompt string) (state.Run, erro
 	return run, nil
 }
 
+// ForkSessionOptions configures a fork from an existing session.
+type ForkSessionOptions struct {
+	Branch      string
+	Prompt      string
+	Tool        string
+	Model       string
+	AutoPR      bool
+	HasAutoPR   bool
+	SetupCmd    string
+	Validate    bool
+	ValidateCmd string
+	BaseBranch  string
+	CommitMsg   string
+}
+
+// ForkSession creates a new session from an existing one and runs immediately.
+func (r *Runner) ForkSession(sourceSessionID string, opts ForkSessionOptions) (state.Session, state.Run, error) {
+	startOpts, sourceSession, err := r.prepareForkSession(sourceSessionID, opts)
+	if err != nil {
+		return state.Session{}, state.Run{}, err
+	}
+
+	session, run, runErr := r.StartSession(startOpts)
+	if runErr != nil {
+		return session, run, runErr
+	}
+	r.annotateForkRun(run.ID, sourceSession)
+	return session, run, nil
+}
+
+// ForkSessionAsync creates a new session from an existing one and starts it in the background.
+func (r *Runner) ForkSessionAsync(sourceSessionID string, opts ForkSessionOptions) (state.Session, state.Run, error) {
+	startOpts, sourceSession, err := r.prepareForkSession(sourceSessionID, opts)
+	if err != nil {
+		return state.Session{}, state.Run{}, err
+	}
+
+	session, run, runErr := r.StartSessionAsync(startOpts)
+	if runErr != nil {
+		return session, run, runErr
+	}
+	r.annotateForkRun(run.ID, sourceSession)
+	return session, run, nil
+}
+
 func (r *Runner) prepareSession(opts StartSessionOptions) (state.Session, state.Run, sessionRunOptions, error) {
 	if r.state == nil {
 		return state.Session{}, state.Run{}, sessionRunOptions{}, errors.New("state store not configured")
@@ -199,38 +244,13 @@ func (r *Runner) prepareFollowUpRun(sessionID, prompt string) (state.Session, st
 	if err := r.state.SetSessionBusy(session.ID, true); err != nil {
 		return state.Session{}, state.Run{}, sessionRunOptions{}, err
 	}
-
-	repo, found, err := r.state.GetRepoByName(session.RepoName)
-	if err != nil {
+	worktreePath := strings.TrimSpace(session.WorktreePath)
+	if worktreePath == "" {
 		_ = r.state.SetSessionBusy(session.ID, false)
-		return state.Session{}, state.Run{}, sessionRunOptions{}, err
-	}
-	if !found {
-		_ = r.state.SetSessionBusy(session.ID, false)
-		return state.Session{}, state.Run{}, sessionRunOptions{}, fmt.Errorf("repo %q not found", session.RepoName)
-	}
-	if strings.TrimSpace(repo.BaseWorktreePath) == "" {
-		_ = r.state.SetSessionBusy(session.ID, false)
-		return state.Session{}, state.Run{}, sessionRunOptions{}, fmt.Errorf("repo %q has no base worktree path", session.RepoName)
-	}
-
-	if err := r.detachWorktreeHead(session.WorktreePath); err != nil {
-		_ = r.state.SetSessionBusy(session.ID, false)
-		return state.Session{}, state.Run{}, sessionRunOptions{}, err
+		return state.Session{}, state.Run{}, sessionRunOptions{}, fmt.Errorf("session %q has no worktree path", session.ID)
 	}
 
 	runID := uuid.New().String()
-	worktreeName := runWorktreeName(session.Branch, runID)
-	worktreePath, err := r.createWorktreePathWithName(repo.BaseWorktreePath, worktreeName, session.Branch)
-	if err != nil {
-		_ = r.state.SetSessionBusy(session.ID, false)
-		return state.Session{}, state.Run{}, sessionRunOptions{}, err
-	}
-	if err := r.state.SetSessionWorktreePath(session.ID, worktreePath); err != nil {
-		_ = r.state.SetSessionBusy(session.ID, false)
-		return state.Session{}, state.Run{}, sessionRunOptions{}, err
-	}
-	session.WorktreePath = worktreePath
 
 	now := time.Now().UTC()
 	run := state.Run{
@@ -251,6 +271,7 @@ func (r *Runner) prepareFollowUpRun(sessionID, prompt string) (state.Session, st
 		return state.Session{}, state.Run{}, sessionRunOptions{}, err
 	}
 
+	repo, _, _ := r.state.GetRepoByName(session.RepoName)
 	baseBranch := strings.TrimSpace(repo.DefaultBranch)
 	if baseBranch == "" {
 		baseBranch = "main"
@@ -259,6 +280,178 @@ func (r *Runner) prepareFollowUpRun(sessionID, prompt string) (state.Session, st
 		Prompt:     prompt,
 		BaseBranch: baseBranch,
 	}, nil
+}
+
+func (r *Runner) prepareForkSession(sourceSessionID string, opts ForkSessionOptions) (StartSessionOptions, state.Session, error) {
+	if r.state == nil {
+		return StartSessionOptions{}, state.Session{}, errors.New("state store not configured")
+	}
+
+	sourceSessionID = strings.TrimSpace(sourceSessionID)
+	opts.Branch = strings.TrimSpace(opts.Branch)
+	opts.Prompt = strings.TrimSpace(opts.Prompt)
+	opts.Tool = strings.TrimSpace(opts.Tool)
+	opts.Model = strings.TrimSpace(opts.Model)
+	opts.SetupCmd = strings.TrimSpace(opts.SetupCmd)
+	opts.ValidateCmd = strings.TrimSpace(opts.ValidateCmd)
+	opts.BaseBranch = strings.TrimSpace(opts.BaseBranch)
+	opts.CommitMsg = strings.TrimSpace(opts.CommitMsg)
+
+	switch {
+	case sourceSessionID == "":
+		return StartSessionOptions{}, state.Session{}, errors.New("source session id is required")
+	case opts.Branch == "":
+		return StartSessionOptions{}, state.Session{}, errors.New("branch is required")
+	case opts.Prompt == "":
+		return StartSessionOptions{}, state.Session{}, errors.New("prompt is required")
+	}
+
+	sourceSession, found, err := r.state.GetSession(sourceSessionID)
+	if err != nil {
+		return StartSessionOptions{}, state.Session{}, err
+	}
+	if !found {
+		return StartSessionOptions{}, state.Session{}, fmt.Errorf("session %q not found", sourceSessionID)
+	}
+	if sourceSession.Busy {
+		return StartSessionOptions{}, state.Session{}, fmt.Errorf("session %q is busy", sourceSessionID)
+	}
+
+	repo, found, err := r.state.GetRepoByName(sourceSession.RepoName)
+	if err != nil {
+		return StartSessionOptions{}, state.Session{}, err
+	}
+	if !found {
+		return StartSessionOptions{}, state.Session{}, fmt.Errorf("repo %q not found", sourceSession.RepoName)
+	}
+	if strings.TrimSpace(repo.BaseWorktreePath) == "" {
+		return StartSessionOptions{}, state.Session{}, fmt.Errorf("repo %q has no base worktree path", sourceSession.RepoName)
+	}
+
+	tool := opts.Tool
+	if tool == "" {
+		tool = sourceSession.Tool
+	}
+	if tool == "" {
+		return StartSessionOptions{}, state.Session{}, errors.New("tool is required")
+	}
+
+	model := opts.Model
+	if model == "" {
+		model = sourceSession.Model
+	}
+
+	autoPR := sourceSession.AutoPR
+	if opts.HasAutoPR {
+		autoPR = opts.AutoPR
+	}
+
+	baseBranch := opts.BaseBranch
+	if baseBranch == "" {
+		baseBranch = strings.TrimSpace(repo.DefaultBranch)
+		if baseBranch == "" {
+			baseBranch = "main"
+		}
+	}
+
+	finalPrompt := opts.Prompt
+	if summary, err := r.generateForkSummary(sourceSession, opts.Prompt, tool); err == nil {
+		summary = strings.TrimSpace(summary)
+		if summary != "" {
+			finalPrompt = strings.TrimSpace(opts.Prompt) + "\n\nContext from source session:\n" + summary
+		}
+	}
+
+	return StartSessionOptions{
+		RepoName:    sourceSession.RepoName,
+		RepoPath:    repo.BaseWorktreePath,
+		Branch:      opts.Branch,
+		Tool:        tool,
+		Model:       model,
+		Prompt:      finalPrompt,
+		AutoPR:      autoPR,
+		SetupCmd:    opts.SetupCmd,
+		Validate:    opts.Validate,
+		ValidateCmd: opts.ValidateCmd,
+		BaseBranch:  baseBranch,
+		CommitMsg:   opts.CommitMsg,
+	}, sourceSession, nil
+}
+
+func (r *Runner) generateForkSummary(sourceSession state.Session, forkPrompt, toolName string) (string, error) {
+	if r.state == nil {
+		return "", errors.New("state store not configured")
+	}
+	runs, err := r.state.ListRuns(sourceSession.ID)
+	if err != nil {
+		return "", err
+	}
+	if len(runs) == 0 {
+		return "", nil
+	}
+	latest := runs[0]
+	events, err := r.state.ListRunEvents(latest.ID, 200)
+	if err != nil {
+		return "", err
+	}
+
+	var contextBuilder strings.Builder
+	contextBuilder.WriteString("Source session:\n")
+	contextBuilder.WriteString("- Repo: " + sourceSession.RepoName + "\n")
+	contextBuilder.WriteString("- Branch: " + sourceSession.Branch + "\n")
+	contextBuilder.WriteString("- Tool: " + sourceSession.Tool + "\n")
+	contextBuilder.WriteString("- Latest run state: " + latest.State + "\n")
+	contextBuilder.WriteString("- Latest run prompt: " + truncate(latest.Prompt, 500) + "\n")
+	if strings.TrimSpace(latest.CommitSHA) != "" {
+		contextBuilder.WriteString("- Latest commit SHA: " + latest.CommitSHA + "\n")
+	}
+	if strings.TrimSpace(latest.CommitMsg) != "" {
+		contextBuilder.WriteString("- Latest commit message: " + truncate(latest.CommitMsg, 300) + "\n")
+	}
+	contextBuilder.WriteString("\nRecent run events:\n")
+	for _, event := range events {
+		line := event.Type + ": " + truncate(strings.TrimSpace(event.Message+" "+event.Data), 300)
+		contextBuilder.WriteString("- " + strings.TrimSpace(line) + "\n")
+	}
+
+	summaryPrompt := strings.TrimSpace(fmt.Sprintf(
+		"You are preparing context for a forked coding session.\n"+
+			"Summarize the source session in concise bullet points.\n"+
+			"Requirements:\n"+
+			"- Focus on implemented behavior, pending work, and risks.\n"+
+			"- Keep under 250 words.\n"+
+			"- Plain text only.\n\n"+
+			"Upcoming fork request:\n%s\n\n"+
+			"Source data:\n%s",
+		strings.TrimSpace(forkPrompt),
+		contextBuilder.String(),
+	))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	tempDir, err := os.MkdirTemp("", "fog-fork-summary-*")
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	summary, err := r.runTool(ctx, toolName, tempDir, summaryPrompt)
+	if err != nil {
+		return "", err
+	}
+	return truncate(summary, 4000), nil
+}
+
+func (r *Runner) annotateForkRun(runID string, sourceSession state.Session) {
+	if r.state == nil {
+		return
+	}
+	_ = r.state.AppendRunEvent(state.RunEvent{
+		RunID:   runID,
+		Type:    "fork",
+		Message: fmt.Sprintf("Forked from session %s on branch %s", sourceSession.ID, sourceSession.Branch),
+	})
 }
 
 func (r *Runner) loadSessionAndRun(sessionID, runID string, runErr error) (state.Session, state.Run, error) {
@@ -391,16 +584,6 @@ func (r *Runner) executeSessionRun(session state.Session, run state.Run, opts se
 	defer func() {
 		r.clearActiveRun(session.ID, run.ID)
 		cancel()
-		if err := r.detachWorktreeHead(run.WorktreePath); err != nil {
-			_ = r.state.AppendRunEvent(state.RunEvent{
-				RunID:   run.ID,
-				Type:    "warning",
-				Message: err.Error(),
-			})
-			if retErr == nil {
-				retErr = err
-			}
-		}
 		if err := r.state.SetSessionBusy(session.ID, false); err != nil && retErr == nil {
 			retErr = err
 		}

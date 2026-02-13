@@ -110,6 +110,28 @@ func TestHandleCreateFollowUpRunRequiresPrompt(t *testing.T) {
 	}
 }
 
+func TestHandleForkSessionRequiresPrompt(t *testing.T) {
+	srv := newTestServer(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/sessions/abc/fork", bytes.NewBufferString(`{}`))
+	w := httptest.NewRecorder()
+
+	srv.handleSessionDetail(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("unexpected status: got %d want %d body=%s", w.Code, http.StatusBadRequest, w.Body.String())
+	}
+}
+
+func TestHandleForkSessionUnknownSession(t *testing.T) {
+	srv := newTestServer(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/sessions/missing/fork", bytes.NewBufferString(`{"prompt":"new fork prompt"}`))
+	w := httptest.NewRecorder()
+
+	srv.handleSessionDetail(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("unexpected status: got %d want %d body=%s", w.Code, http.StatusNotFound, w.Body.String())
+	}
+}
+
 func TestResolveBranchNameUsesPrefixAndSlugifiesPrompt(t *testing.T) {
 	srv := newTestServer(t)
 	if err := srv.stateStore.SetSetting("branch_prefix", "team"); err != nil {

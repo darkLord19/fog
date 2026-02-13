@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/darkLord19/foglet/internal/ai"
 	"github.com/darkLord19/foglet/internal/editor"
 	"github.com/darkLord19/foglet/internal/runner"
 	"github.com/darkLord19/foglet/internal/state"
@@ -38,6 +39,21 @@ type CreateSessionRequest struct {
 type FollowUpRunRequest struct {
 	Prompt string `json:"prompt"`
 	Async  *bool  `json:"async,omitempty"`
+}
+
+// ForkSessionRequest is the payload for POST /api/sessions/{id}/fork.
+type ForkSessionRequest struct {
+	Prompt      string `json:"prompt"`
+	BranchName  string `json:"branch_name,omitempty"`
+	Tool        string `json:"tool,omitempty"`
+	Model       string `json:"model,omitempty"`
+	AutoPR      *bool  `json:"autopr,omitempty"`
+	SetupCmd    string `json:"setup_cmd,omitempty"`
+	Validate    bool   `json:"validate,omitempty"`
+	ValidateCmd string `json:"validate_cmd,omitempty"`
+	BaseBranch  string `json:"base_branch,omitempty"`
+	CommitMsg   string `json:"commit_msg,omitempty"`
+	Async       *bool  `json:"async,omitempty"`
 }
 
 type createSessionResponse struct {
@@ -120,6 +136,9 @@ func (s *Server) handleSessionDetail(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case parts[1] == "cancel" && r.Method == http.MethodPost:
 			s.cancelSessionRun(w, sessionID)
+			return
+		case parts[1] == "fork" && r.Method == http.MethodPost:
+			s.createForkSession(w, r, sessionID)
 			return
 		case parts[1] == "diff" && r.Method == http.MethodGet:
 			s.getSessionDiff(w, sessionID)
@@ -328,6 +347,94 @@ func (s *Server) createFollowUpRun(w http.ResponseWriter, r *http.Request, sessi
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(run)
+}
+
+func (s *Server) createForkSession(w http.ResponseWriter, r *http.Request, sourceSessionID string) {
+	var req ForkSessionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	req.Prompt = strings.TrimSpace(req.Prompt)
+	if req.Prompt == "" {
+		http.Error(w, "prompt is required", http.StatusBadRequest)
+		return
+	}
+
+	sourceSession, found, err := s.runner.GetSession(sourceSessionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !found {
+		http.Error(w, "session not found", http.StatusNotFound)
+		return
+	}
+
+	branch, err := s.resolveBranchName(req.BranchName, req.Prompt)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	tool := strings.TrimSpace(req.Tool)
+	if tool != "" {
+		if _, err := ai.GetTool(tool); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+	async := true
+	if req.Async != nil {
+		async = *req.Async
+	}
+
+	opts := runner.ForkSessionOptions{
+		Branch:      branch,
+		Prompt:      req.Prompt,
+		Tool:        tool,
+		Model:       strings.TrimSpace(req.Model),
+		SetupCmd:    strings.TrimSpace(req.SetupCmd),
+		Validate:    req.Validate,
+		ValidateCmd: strings.TrimSpace(req.ValidateCmd),
+		BaseBranch:  strings.TrimSpace(req.BaseBranch),
+		CommitMsg:   strings.TrimSpace(req.CommitMsg),
+	}
+	if req.AutoPR != nil {
+		opts.HasAutoPR = true
+		opts.AutoPR = *req.AutoPR
+	}
+	if strings.TrimSpace(opts.Tool) == "" {
+		opts.Tool = sourceSession.Tool
+	}
+
+	if async {
+		session, run, err := s.runner.ForkSessionAsync(sourceSessionID, opts)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(w).Encode(asyncCreateSessionResponse{
+			SessionID: session.ID,
+			RunID:     run.ID,
+			Status:    "accepted",
+		})
+		return
+	}
+
+	session, run, err := s.runner.ForkSession(sourceSessionID, opts)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(createSessionResponse{
+		Session: session,
+		Run:     run,
+	})
 }
 
 func (s *Server) listRunEvents(w http.ResponseWriter, r *http.Request, sessionID, runID string) {

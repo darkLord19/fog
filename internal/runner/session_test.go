@@ -96,6 +96,57 @@ func TestContinueSessionRejectsBusySession(t *testing.T) {
 	}
 }
 
+func TestPrepareFollowUpRunReusesSessionWorktree(t *testing.T) {
+	r, err := New(t.TempDir(), t.TempDir())
+	if err != nil {
+		t.Fatalf("new runner failed: %v", err)
+	}
+	st, err := state.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("new state store failed: %v", err)
+	}
+	defer func() { _ = st.Close() }()
+	r.SetStateStore(st)
+
+	if _, err := st.UpsertRepo(state.Repo{
+		Name:             "acme/api",
+		URL:              "https://github.com/acme/api.git",
+		Host:             "github.com",
+		Owner:            "acme",
+		Repo:             "api",
+		BarePath:         "/tmp/acme-api/repo.git",
+		BaseWorktreePath: "/tmp/acme-api/base",
+		DefaultBranch:    "main",
+	}); err != nil {
+		t.Fatalf("upsert repo failed: %v", err)
+	}
+
+	worktreePath := "/tmp/acme-api/worktrees/fog-branch"
+	now := time.Now().UTC()
+	if err := st.CreateSession(state.Session{
+		ID:           "session-1",
+		RepoName:     "acme/api",
+		Branch:       "fog/branch",
+		WorktreePath: worktreePath,
+		Tool:         "claude",
+		AutoPR:       false,
+		Status:       "COMPLETED",
+		Busy:         false,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}); err != nil {
+		t.Fatalf("create session failed: %v", err)
+	}
+
+	_, run, _, err := r.prepareFollowUpRun("session-1", "follow up")
+	if err != nil {
+		t.Fatalf("prepareFollowUpRun failed: %v", err)
+	}
+	if run.WorktreePath != worktreePath {
+		t.Fatalf("follow-up run should reuse session worktree: got %q want %q", run.WorktreePath, worktreePath)
+	}
+}
+
 func TestTruncate(t *testing.T) {
 	got := truncate("abcdefgh", 4)
 	if got != "abcd..." {
