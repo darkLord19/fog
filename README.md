@@ -1,381 +1,84 @@
-# Fog - Local AI Agent Orchestration
+# Fog
 
-> "Turn your local machine into cloud agents"
+Turn your local machine into cloud agents.
 
-**Domain:** getfog.dev
+Fog is a local-first orchestration layer for running existing AI coding CLIs against your repositories in isolated Git worktrees.
 
-Fog orchestrates AI coding tasks using existing AI tools in isolated Git worktrees. Safe, local, and async.
+Fog does not ship an LLM.
 
-## 🎯 What is Fog?
+## What You Get
 
-Fog is a **local-first developer system** that:
-- Runs AI coding tasks in **isolated worktrees**
-- Supports **Cursor, Claude Code, Gemini CLI, Aider**
-- Provides **CLI, Desktop App, and HTTP API** interfaces
-- Creates **clean PRs** automatically
-- Executes tasks **asynchronously**
+- `wtx`: Git worktree manager (no AI, no networking).
+- `fog`: CLI for onboarding, managed repos, and one-off tasks.
+- `fogd`: local daemon (HTTP API + session execution engine).
+- `fogapp`: Wails desktop UI that talks to `fogd` and starts it when needed.
 
-## 🏗️ System Components
+## Sessions (Desktop)
 
-### 1. wtx - Worktree CLI
-Git worktree manager (zero AI, zero networking)
+A session is a long-lived branch/worktree "conversation" that you can follow up on.
 
-```bash
-wtx                    # Interactive TUI
-wtx list              # List worktrees
-wtx add <n>          # Create worktree  
-wtx add --json <n>   # Create worktree (machine-readable output)
-wtx open <n>         # Open in editor
-wtx status <n>       # Detailed status
-wtx config           # View configuration
-```
+- Follow-ups and re-runs operate on the same session worktree.
+- Forking is explicit: it creates a new branch/worktree from the current session head.
+- Run output is persisted as events; active runs can be streamed via SSE.
 
-### 2. fog - AI Orchestration CLI
-Execute AI tasks locally
+## Supported AI Tools
 
-```bash
-fog run \
-  --branch feature-auth \
-  --tool claude \
-  --prompt "Add JWT authentication" \
-  --commit \
-  --pr
+Fog executes tools you already installed:
+- `claude` / `claude-code`
+- `cursor-agent`
+- `gemini`
+- `aider`
 
-fog list              # List tasks
-fog status <id>       # Task status
-fog config view       # Combined wtx + fog config view
-```
+Adapters prefer headless/streaming modes when available and fall back to plain output when needed.
 
-### 3. fogd - Control Plane
-Daemon with local HTTP API (desktop app uses this)
+## Quick Start
+
+Install:
 
 ```bash
-fogd --port 8080
-```
-
-## 🚀 Quick Start
-
-### Installation
-
-```bash
-# Install all components
 make install
-
-# Or via Go
-go install github.com/darkLord19/foglet/cmd/{wtx,fog,fogd,fogcloud}@latest
-
-# Linux installer (release artifacts + checksum verify)
-scripts/install-linux.sh
-
-# Version-pinned Linux install
-scripts/install-linux.sh --version v0.1.0
+# or:
+go install github.com/darkLord19/foglet/cmd/{wtx,fog,fogd,fogcloud,fogapp}@latest
 ```
 
-Release tags (`v*`) publish multi-platform archives and a generated Homebrew formula (`wtx.rb`) artifact.
-
-### Basic Usage
+Onboard (GitHub PAT + default tool):
 
 ```bash
-# 0. One-time onboarding (PAT + default tool)
 fog setup
-# Supports both classic and fine-grained GitHub PATs
+```
 
-# 0b. Optional: inspect or update Fog settings
-fog config view
-fog config set --branch-prefix team --default-tool claude
+Import one repo:
 
-# 1. Simple AI task
-fog run \
-  --repo acme-api \
-  --branch feature-otp \
-  --tool claude \
-  --prompt "Add OTP login" \
-  --commit
-# --tool is optional once default_tool is configured by `fog setup`
-
-# 2. With validation
-fog run \
-  --repo acme-api \
-  --branch fix-bug \
-  --tool aider \
-  --prompt "Fix auth bug" \
-  --setup-cmd "npm ci" \
-  --validate-cmd "npm test" \
-  --commit \
-  --pr
-
-# 3. Start daemon
-fogd --port 8080
-
-# 3b. Desktop app (bundles fogd; starts local server if needed)
-# requires Wails CLI installed for dev mode
-make fogapp-dev
-# or launch installed desktop binary wrapper
-fog app
-
-# 4. Discover/import repos via configured PAT
+```bash
 fog repos discover
-fog repos import
-# import registers repo metadata and initializes:
-# ~/.fog/repos/<alias>/repo.git (bare clone)
-# ~/.fog/repos/<alias>/base (base worktree)
+fog repos import --select owner/repo
 ```
 
-## ✨ Features
-
-### wtx (Worktree Management)
-- 🎨 **Interactive TUI** - Fuzzy search and keyboard navigation
-- 🔧 **Multi-editor** - VS Code, Cursor, Neovim, Claude Code
-- ⚙️ **Setup hooks** - Auto-run `npm install` after creation
-- 📊 **Status tracking** - Dirty, ahead/behind, stash detection
-- 🔒 **Safe operations** - Never lose uncommitted work
-
-### fog (AI Orchestration)
-- 🤖 **Multi-AI** - Cursor, Claude Code, Gemini CLI, Aider support
-- 🌳 **Isolation** - Each task in separate worktree
-- ✅ **Validation** - Run tests after AI
-- 📝 **Auto-commit** - Commit changes automatically
-- 🔀 **Auto-PR** - Create pull requests via `gh`
-- 📊 **Lifecycle tracking** - Full state machine
-
-### fogd (Control Plane)
-- 🌐 **HTTP API** - RESTful task management
-- 🧩 **Desktop-first UI** - `fogapp` (Wails) is the primary local UI
-- 🔗 **Embedded daemon** - desktop app starts bundled fogd API server when needed
-- 🔄 **Async** - Fire-and-forget execution
-- 📢 **Notifications** - Completion alerts
-- 🔌 **Extensible** - Easy to add integrations
-- ✋ **Real stop semantics** - cancels active process group for current run
-- 🌳 **Session worktree model** - follow-ups and re-runs stay in the session worktree
-- 🌿 **Explicit fork flow** - forks create a new branch/worktree only when requested
-- 📡 **Live run streaming** - SSE endpoint for token/chunk-level run events
-
-### Desktop Session UX (current)
-- Session title is derived from the first line of the prompt.
-- Sidebar separates running and completed sessions.
-- Task detail auto-follows the latest run for timeline/logs/diff.
-- `Stop` cancels only the latest active run.
-- `Re-run` and follow-ups reuse the session worktree and tool conversation when available.
-- `Fork` creates a new branch/worktree with an auto-generated branch name from prompt.
-- Diff tab shows changes since base branch (`base...session-branch`).
-- `Open in Editor` opens the latest session worktree.
-
-## 📚 Documentation
-
-- **[Current State](docs/CURRENT_STATE.md)** - Implemented behavior snapshot
-- **[Testing Guide](docs/TESTING.md)** - Automated + end-to-end validation steps
-- **[Release Guide](docs/RELEASE.md)** - Artifact packaging, Homebrew formula generation, release workflow
-- **[Complete Fog Guide](docs/FOG.md)** - Full documentation
-- **[Project Summary](PROJECT_SUMMARY.md)** - Implementation details
-- **[Contributing](CONTRIBUTING.md)** - Development guide
-- **[Changelog](CHANGELOG.md)** - Version history
-
-## 🛠️ Configuration
-
-### wtx (~/.config/wtx/config.json)
-
-```json
-{
-  "editor": "cursor",
-  "reuse_window": true,
-  "worktree_dir": "../worktrees",
-  "setup_cmd": "npm install",
-  "validate_cmd": "npm test",
-  "default_branch": "main"
-}
-```
-
-### fog state (~/.fog)
-
-- State DB: `~/.fog/fog.db`
-- Local encryption key: `~/.fog/master.key`
-- GitHub PAT (if configured): encrypted at rest in SQLite
-- Managed repository registry: stored in SQLite and used by fogd for multi-repo tasks
-
-## 🎯 Use Cases
-
-### Solo Developer
-```bash
-# Work on multiple features in parallel
-fog run --branch feature-a --tool claude --prompt "..."
-fog run --branch feature-b --tool aider --prompt "..."
-fog list  # See all active tasks
-```
-
-### CI/CD Integration
-```bash
-# Via API
-curl -X POST http://localhost:8080/api/tasks/create \
-  -d '{"repo":"acme-api","branch":"fix","prompt":"Fix bug","ai_tool":"claude"}'
-# ai_tool can be omitted only when default_tool is configured
-```
-
-## 🔧 AI Tool Support
-
-| Tool | Status | CLI | Notes |
-|------|--------|-----|-------|
-| Claude Code | ✅ | Yes | Full support |
-| Gemini CLI | ✅ | Yes | Headless + stream-json |
-| Aider | ✅ | Yes | Full support |
-| Cursor | ✅ | Yes | Headless via `cursor-agent` |
-
-Adding new tools: Implement `ai.Tool` interface in `internal/ai/`
-
-## 🌐 HTTP API
-
-### Endpoints
+Run the desktop app (dev mode):
 
 ```bash
-# Health check
-GET /health
-
-# List tasks
-GET /api/tasks
-
-# Get task
-GET /api/tasks/{id}
-
-# Create task
-POST /api/tasks/create
-{
-  "branch": "feature-name",
-  "repo": "acme-api",
-  "prompt": "Task description",
-  "ai_tool": "claude",
-  "options": {
-    "commit": true,
-    "async": true
-  }
-}
-
-# Session APIs (desktop-first)
-GET /api/sessions
-POST /api/sessions
-GET /api/sessions/{id}
-GET /api/sessions/{id}/runs
-POST /api/sessions/{id}/runs
-GET /api/sessions/{id}/runs/{run_id}/events
-GET /api/sessions/{id}/runs/{run_id}/stream
-POST /api/sessions/{id}/fork
-POST /api/sessions/{id}/cancel
-GET /api/sessions/{id}/diff
-POST /api/sessions/{id}/open
+make fogapp-dev
 ```
 
-## 🏗️ Architecture
+## Local Storage And Security
 
-```
-┌──────────────────────────────────┐
-│       User Interfaces            │
-│ CLI │ Desktop │ API │ VS Code │
-└──────────┬───────────────────────┘
-           │
-    ┌──────▼──────┐
-    │    fogd     │
-    │  (HTTP API)  │
-    └──────┬──────┘
-           │
-    ┌──────▼──────┐
-    │ Fog Runner  │
-    │(Orchestrate)│
-    └──────┬──────┘
-           │
-    ┌──────▼──────┐
-    │ wtx + AI    │
-    │  (Execute)  │
-    └─────────────┘
-```
+Fog home:
+- `FOG_HOME` (default `~/.fog`)
+- `FOG_HOME/fog.db` (SQLite state: repos, settings, sessions, runs, run events, tasks)
+- `FOG_HOME/master.key` (AES-256-GCM key for encrypting secrets at rest)
+- `FOG_HOME/repos/...` (bare clones + base worktrees)
 
-## 🔄 Task Lifecycle
+Fog never stores your GitHub PAT in plaintext.
 
-```
-CREATED
-  ↓
-SETUP (run setup_cmd)
-  ↓
-AI_RUNNING (invoke AI tool)
-  ↓
-VALIDATING (run validate_cmd)
-  ↓
-COMMITTED (git commit)
-  ↓
-PR_CREATED (gh pr create)
-  ↓
-COMPLETED | FAILED | CANCELLED
-```
+## Docs
 
-## 🛡️ Safety Features
+- `docs/README.md`
+- `docs/USAGE.md`
+- `docs/API.md`
+- `docs/DEVELOPMENT.md`
+- `docs/RELEASE.md`
 
-- ✅ Worktree isolation - Never touch main
-- ✅ Dirty detection - Warns before deleting
-- ✅ Atomic operations - No partial writes
-- ✅ No force-push - Append-only
-- ✅ Failed preservation - Keep for debugging
+## License
 
-## 🔌 Extensions
+AGPL-3.0-or-later (see `LICENSE`).
 
-### VS Code
-Tree view + quick switcher (Cmd+Shift+W)
-
-```bash
-cd plugins/vscode
-npm install && npm run package
-code --install-extension *.vsix
-```
-
-### Claude Code (MCP)
-```json
-{
-  "mcpServers": {
-    "wtx": {
-      "command": "npx",
-      "args": ["-y", "wtx-mcp-server"]
-    }
-  }
-}
-```
-
-## 🚧 Roadmap
-
-- [x] wtx - Worktree management
-- [x] fog - AI orchestration  
-- [x] fogd - HTTP API
-- [x] Slack integration
-- [x] Desktop app (Wails)
-- [x] VS Code extension
-- [x] Claude Code MCP
-- [ ] Advanced GUI workflows
-- [ ] PR comment → re-run
-- [ ] Docker isolation
-- [ ] Team features
-
-## 💻 Development
-
-```bash
-# Build all
-make all
-
-# Build individually
-make wtx
-make fog
-make fogd
-
-# Test
-make test
-
-# Install
-make install
-```
-
-## 📖 Examples
-
-See [docs/FOG.md](docs/FOG.md) for comprehensive examples.
-For validation steps, see [docs/TESTING.md](docs/TESTING.md).
-
-## 📜 License
-
-AGPL-3.0-or-later
-
----
-
-**Fog** - Turn your laptop into a personal cloud for AI agents

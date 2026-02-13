@@ -1,0 +1,103 @@
+# Local HTTP API
+
+`fogd` serves a local HTTP API (default `http://127.0.0.1:8080`).
+
+This API is designed for local clients (desktop app, scripts). It is not an internet-facing service.
+
+## Health
+
+`GET /health`
+
+## Settings
+
+`GET /api/settings`
+
+Response:
+- `default_tool` (string)
+- `branch_prefix` (string)
+- `has_github_token` (bool)
+- `onboarding_required` (bool)
+- `available_tools` ([]string)
+
+`PUT /api/settings`
+
+Body:
+- `default_tool` (string, optional)
+- `branch_prefix` (string, optional)
+- `github_pat` (string, optional)
+
+## Repos
+
+`GET /api/repos`
+
+`POST /api/repos/discover`
+
+Uses the configured GitHub PAT to list accessible repos.
+
+`POST /api/repos/import`
+
+Body:
+
+```json
+{"repos":["owner/repo","owner/another"]}
+```
+
+## Sessions (Desktop)
+
+`GET /api/sessions`
+
+Returns session summaries with `latest_run` when present.
+
+`POST /api/sessions`
+
+Body:
+- `repo` (required, managed repo alias `owner/repo`)
+- `prompt` (required)
+- `tool` (optional if `default_tool` is configured)
+- `model` (optional)
+- `branch_name` (optional; generated from prompt when omitted)
+- `autopr` (optional)
+- `setup_cmd`, `validate`, `validate_cmd`, `base_branch`, `commit_msg` (optional)
+- `async` (optional, default true)
+
+Follow-ups:
+
+- `POST /api/sessions/{id}/runs` (body: `{ "prompt": "...", "async": true }`)
+- `GET /api/sessions/{id}/runs`
+- `GET /api/sessions/{id}/runs/{run_id}/events`
+
+Streaming:
+
+- `GET /api/sessions/{id}/runs/{run_id}/stream`
+
+Other actions:
+
+- `POST /api/sessions/{id}/cancel` (cancels only the latest active run)
+- `POST /api/sessions/{id}/fork` (creates a new session from the source session head)
+- `GET /api/sessions/{id}/diff` (diff is base-branch vs session branch)
+- `POST /api/sessions/{id}/open` (open session worktree in editor)
+
+## Tasks (Legacy/One-Off)
+
+`GET /api/tasks`
+
+`POST /api/tasks/create`
+
+Body:
+
+```json
+{
+  "repo":"owner/repo",
+  "branch":"fog/task-branch",
+  "prompt":"Do thing",
+  "ai_tool":"claude",
+  "options":{"async":true,"commit":false}
+}
+```
+
+`GET /api/tasks/{id}`
+
+## Notes
+
+Some cloud/slack endpoints exist in the codebase for experiments, but they are not part of the current desktop-first docs.
+
