@@ -277,7 +277,7 @@
                 {:else}
                     <div class="empty-resources">
                         <Search size={20} />
-                        <p>No repositories indexed</p>
+                        <p>No repositories imported</p>
                     </div>
                 {/if}
 
@@ -290,16 +290,16 @@
                     >
                         {#if discoveryLoading}
                             <div class="mini-loader"></div>
-                            <span>Scanning Infrastructure...</span>
+                            <span>Fetching from GitHub...</span>
                         {:else}
                             <Search size={14} />
-                            <span>Discover Local Repositories</span>
+                            <span>Discover GitHub Repositories</span>
                         {/if}
                     </button>
 
                     {#if discovered.length > 0}
                         <div class="discovery-results" transition:slide>
-                            <div class="res-header">Available to Index</div>
+                            <div class="res-header">Available to Import</div>
                             <div class="res-list">
                                 {#each discovered as d, i}
                                     <div class="res-item">
@@ -313,7 +313,7 @@
                                                 handleImport(d.full_name)}
                                         >
                                             <Plus size={12} />
-                                            <span>Index</span>
+                                            <span>Import</span>
                                         </button>
                                     </div>
                                 {/each}
