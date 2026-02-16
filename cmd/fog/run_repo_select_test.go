@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	foggithub "github.com/darkLord19/foglet/internal/github"
+	"github.com/darkLord19/foglet/internal/ghcli"
 	"github.com/darkLord19/foglet/internal/state"
 )
 
@@ -28,6 +28,13 @@ func TestResolveRepoNameForRunUsesFlag(t *testing.T) {
 	}
 }
 
+func TestResolveRepoNameForRunRejectsInvalidFlag(t *testing.T) {
+	_, err := resolveRepoNameForRun("../repo", nil)
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+}
+
 func TestResolveRepoNameForRunRequiresRepoWhenNotTTY(t *testing.T) {
 	origTTY := stdinIsTTYFn
 	t.Cleanup(func() { stdinIsTTYFn = origTTY })
@@ -43,33 +50,27 @@ func TestResolveRepoNameForRunRequiresRepoWhenNotTTY(t *testing.T) {
 }
 
 func TestResolveRepoNameForRunPromptsAndSelectsRepo(t *testing.T) {
-	fogHome := t.TempDir()
-	store, err := state.NewStore(fogHome)
-	if err != nil {
-		t.Fatalf("NewStore failed: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-	if err := store.SaveGitHubToken("token123"); err != nil {
-		t.Fatalf("SaveGitHubToken failed: %v", err)
-	}
-
 	origTTY := stdinIsTTYFn
 	origList := listGitHubReposFn
 	origRead := readLineFn
+	origAvail := isGhAvailableFn
+	origAuth := isGhAuthenticatedFn
 	t.Cleanup(func() {
 		stdinIsTTYFn = origTTY
 		listGitHubReposFn = origList
 		readLineFn = origRead
+		isGhAvailableFn = origAvail
+		isGhAuthenticatedFn = origAuth
 	})
 
 	stdinIsTTYFn = func() bool { return true }
-	listGitHubReposFn = func(token string) ([]foggithub.Repo, error) {
-		if token != "token123" {
-			t.Fatalf("unexpected token: %q", token)
-		}
-		return []foggithub.Repo{
-			{FullName: "acme/api", OwnerLogin: "acme", Name: "api"},
-			{FullName: "acme/web", OwnerLogin: "acme", Name: "web"},
+	isGhAvailableFn = func() bool { return true }
+	isGhAuthenticatedFn = func() bool { return true }
+
+	listGitHubReposFn = func() ([]ghcli.Repo, error) {
+		return []ghcli.Repo{
+			{NameWithOwner: "acme/api", Name: "api"},
+			{NameWithOwner: "acme/web", Name: "web"},
 		}, nil
 	}
 	readLineFn = func(prompt string) (string, error) {
@@ -79,7 +80,7 @@ func TestResolveRepoNameForRunPromptsAndSelectsRepo(t *testing.T) {
 		return "2", nil
 	}
 
-	got, err := resolveRepoNameForRun("", store)
+	got, err := resolveRepoNameForRun("", nil)
 	if err != nil {
 		t.Fatalf("resolveRepoNameForRun returned error: %v", err)
 	}
@@ -112,7 +113,7 @@ func TestEnsureRepoRegisteredForRunReturnsExistingRepo(t *testing.T) {
 
 	origList := listGitHubReposFn
 	t.Cleanup(func() { listGitHubReposFn = origList })
-	listGitHubReposFn = func(token string) ([]foggithub.Repo, error) {
+	listGitHubReposFn = func() ([]ghcli.Repo, error) {
 		t.Fatalf("listGitHubReposFn should not be called when repo already exists")
 		return nil, nil
 	}
@@ -129,7 +130,7 @@ func TestEnsureRepoRegisteredForRunReturnsExistingRepo(t *testing.T) {
 	}
 }
 
-func TestEnsureRepoRegisteredForRunErrorsWithoutTokenWhenMissing(t *testing.T) {
+func TestEnsureRepoRegisteredForRunRejectsInvalidName(t *testing.T) {
 	fogHome := t.TempDir()
 	store, err := state.NewStore(fogHome)
 	if err != nil {
@@ -137,12 +138,56 @@ func TestEnsureRepoRegisteredForRunErrorsWithoutTokenWhenMissing(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
+	_, err = ensureRepoRegisteredForRun("../repo", store, fogHome)
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+}
+
+func TestEnsureRepoRegisteredForRunErrorsWhenGhMissing(t *testing.T) {
+	fogHome := t.TempDir()
+	store, err := state.NewStore(fogHome)
+	if err != nil {
+		t.Fatalf("NewStore failed: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	origAvail := isGhAvailableFn
+	t.Cleanup(func() { isGhAvailableFn = origAvail })
+	isGhAvailableFn = func() bool { return false }
+
 	_, err = ensureRepoRegisteredForRun("acme/api", store, fogHome)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
-	if !strings.Contains(err.Error(), "github token not configured") {
-		t.Fatalf("expected missing token error, got %v", err)
+	if !strings.Contains(err.Error(), "gh CLI not found") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestEnsureRepoRegisteredForRunErrorsWhenNotAuthenticated(t *testing.T) {
+	fogHome := t.TempDir()
+	store, err := state.NewStore(fogHome)
+	if err != nil {
+		t.Fatalf("NewStore failed: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	origAvail := isGhAvailableFn
+	origAuth := isGhAuthenticatedFn
+	t.Cleanup(func() {
+		isGhAvailableFn = origAvail
+		isGhAuthenticatedFn = origAuth
+	})
+	isGhAvailableFn = func() bool { return true }
+	isGhAuthenticatedFn = func() bool { return false }
+
+	_, err = ensureRepoRegisteredForRun("acme/api", store, fogHome)
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "not authenticated") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -153,15 +198,21 @@ func TestEnsureRepoRegisteredForRunErrorsWhenNotAccessible(t *testing.T) {
 		t.Fatalf("NewStore failed: %v", err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	if err := store.SaveGitHubToken("token123"); err != nil {
-		t.Fatalf("SaveGitHubToken failed: %v", err)
-	}
 
+	origAvail := isGhAvailableFn
+	origAuth := isGhAuthenticatedFn
 	origList := listGitHubReposFn
-	t.Cleanup(func() { listGitHubReposFn = origList })
-	listGitHubReposFn = func(token string) ([]foggithub.Repo, error) {
-		return []foggithub.Repo{
-			{FullName: "acme/other", OwnerLogin: "acme", Name: "other"},
+	t.Cleanup(func() {
+		isGhAvailableFn = origAvail
+		isGhAuthenticatedFn = origAuth
+		listGitHubReposFn = origList
+	})
+	isGhAvailableFn = func() bool { return true }
+	isGhAuthenticatedFn = func() bool { return true }
+
+	listGitHubReposFn = func() ([]ghcli.Repo, error) {
+		return []ghcli.Repo{
+			{NameWithOwner: "acme/other", Name: "other"},
 		}, nil
 	}
 
@@ -181,40 +232,42 @@ func TestEnsureRepoRegisteredForRunAutoImports(t *testing.T) {
 		t.Fatalf("NewStore failed: %v", err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	if err := store.SaveGitHubToken("token123"); err != nil {
-		t.Fatalf("SaveGitHubToken failed: %v", err)
-	}
 
+	origAvail := isGhAvailableFn
+	origAuth := isGhAuthenticatedFn
 	origList := listGitHubReposFn
+	origClone := cloneGhRepoFn
 	origRunner := gitRunner
 	t.Cleanup(func() {
+		isGhAvailableFn = origAvail
+		isGhAuthenticatedFn = origAuth
 		listGitHubReposFn = origList
+		cloneGhRepoFn = origClone
 		gitRunner = origRunner
 	})
 
-	listGitHubReposFn = func(token string) ([]foggithub.Repo, error) {
-		return []foggithub.Repo{
-			{
-				FullName:      "acme/api",
-				Name:          "api",
-				OwnerLogin:    "acme",
-				CloneURL:      "https://github.com/acme/api.git",
-				DefaultBranch: "main",
-				Private:       true,
-				HTMLURL:       "https://github.com/acme/api",
-				ID:            123,
-			},
-		}, nil
+	isGhAvailableFn = func() bool { return true }
+	isGhAuthenticatedFn = func() bool { return true }
+
+	listGitHubReposFn = func() ([]ghcli.Repo, error) {
+		r := ghcli.Repo{
+			NameWithOwner: "acme/api",
+			Name:          "api",
+			URL:           "https://github.com/acme/api",
+		}
+		r.DefaultBranchRef.Name = "main"
+		return []ghcli.Repo{r}, nil
+	}
+
+	cloneGhRepoFn = func(fullName, destPath string) error {
+		if fullName != "acme/api" {
+			return fmt.Errorf("unexpected clone name: %q", fullName)
+		}
+		return os.MkdirAll(destPath, 0o755)
 	}
 
 	gitRunner = func(extraEnv []string, args ...string) error {
 		_ = extraEnv
-		// Simulate bare clone by creating the target directory (last arg).
-		if len(args) > 0 && args[0] == "-c" {
-			barePath := args[len(args)-1]
-			return os.MkdirAll(barePath, 0o755)
-		}
-		// Simulate base worktree by creating the worktree directory (last arg).
 		if len(args) > 0 && args[0] == "--git-dir" {
 			basePath := args[len(args)-1]
 			return os.MkdirAll(basePath, 0o755)

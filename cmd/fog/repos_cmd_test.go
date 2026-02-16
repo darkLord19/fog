@@ -1,15 +1,13 @@
 package main
 
 import (
-	"encoding/base64"
-	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
-	foggithub "github.com/darkLord19/foglet/internal/github"
+	"github.com/darkLord19/foglet/internal/ghcli"
 )
 
 func TestParseIndex(t *testing.T) {
@@ -33,24 +31,30 @@ func TestParseIndexesDedup(t *testing.T) {
 	}
 }
 
-func TestRepoAlias(t *testing.T) {
-	repo := foggithub.Repo{FullName: "acme/api", OwnerLogin: "acme", Name: "api"}
-	got := repoAlias(repo)
-	if got != "acme/api" {
-		t.Fatalf("repoAlias mismatch: got %q want %q", got, "acme/api")
+func TestSplitRepoFullName(t *testing.T) {
+	owner, name, err := splitRepoFullName("acme/api")
+	if err != nil {
+		t.Fatalf("splitRepoFullName returned error: %v", err)
+	}
+	if owner != "acme" || name != "api" {
+		t.Fatalf("unexpected split result: %q/%q", owner, name)
+	}
+
+	if _, _, err := splitRepoFullName("../repo"); err == nil {
+		t.Fatalf("expected invalid segment error")
 	}
 }
 
 func TestSelectReposByFullName(t *testing.T) {
-	repos := []foggithub.Repo{
-		{FullName: "acme/api", Name: "api", OwnerLogin: "acme"},
-		{FullName: "acme/web", Name: "web", OwnerLogin: "acme"},
+	repos := []ghcli.Repo{
+		{NameWithOwner: "acme/api", Name: "api"},
+		{NameWithOwner: "acme/web", Name: "web"},
 	}
 	selected, err := selectRepos(repos, "acme/web")
 	if err != nil {
 		t.Fatalf("selectRepos returned error: %v", err)
 	}
-	if len(selected) != 1 || selected[0].FullName != "acme/web" {
+	if len(selected) != 1 || selected[0].NameWithOwner != "acme/web" {
 		t.Fatalf("unexpected selected repos: %+v", selected)
 	}
 }
@@ -60,84 +64,43 @@ func TestEnsureBareRepoInitialized(t *testing.T) {
 	barePath := filepath.Join(tmp, "repo.git")
 	basePath := filepath.Join(tmp, "base")
 
-	repo := foggithub.Repo{
-		FullName: "acme/api",
-		CloneURL: "https://github.com/acme/api.git",
+	repo := ghcli.Repo{
+		NameWithOwner: "acme/api",
 	}
 
-	calls := make([][]string, 0, 2)
+	var calls []string
+	origClone := cloneGhRepoFn
 	origRunner := gitRunner
-	t.Cleanup(func() { gitRunner = origRunner })
+	t.Cleanup(func() {
+		cloneGhRepoFn = origClone
+		gitRunner = origRunner
+	})
+
+	cloneGhRepoFn = func(fullName, destPath string) error {
+		calls = append(calls, "clone "+fullName)
+		return os.MkdirAll(destPath, 0o755)
+	}
 
 	gitRunner = func(extraEnv []string, args ...string) error {
 		_ = extraEnv
-		calls = append(calls, append([]string(nil), args...))
-		if len(args) >= 1 && args[0] == "-c" {
-			if err := os.MkdirAll(barePath, 0o755); err != nil {
-				return err
-			}
-		}
-		if len(args) >= 4 && args[0] == "--git-dir" {
-			if err := os.MkdirAll(basePath, 0o755); err != nil {
-				return err
-			}
+		calls = append(calls, strings.Join(args, " "))
+		if len(args) >= 5 && args[0] == "--git-dir" {
+			return os.MkdirAll(basePath, 0o755)
 		}
 		return nil
 	}
 
-	if err := ensureBareRepoInitialized("token", repo, barePath, basePath); err != nil {
+	if err := ensureBareRepoInitialized(repo, barePath, basePath); err != nil {
 		t.Fatalf("ensureBareRepoInitialized failed: %v", err)
 	}
+
 	if len(calls) != 2 {
-		t.Fatalf("expected 2 git calls, got %d", len(calls))
+		t.Fatalf("expected 2 calls (clone + worktree add), got %d: %v", len(calls), calls)
 	}
-}
-
-func TestCloneBareRepoWithTokenFallsBackToBasic(t *testing.T) {
-	origRunner := gitRunner
-	t.Cleanup(func() { gitRunner = origRunner })
-
-	calls := make([][]string, 0, 2)
-	gitRunner = func(extraEnv []string, args ...string) error {
-		_ = extraEnv
-		calls = append(calls, append([]string(nil), args...))
-		if len(calls) == 1 {
-			return fmt.Errorf("auth failed")
-		}
-		return nil
+	if calls[0] != "clone acme/api" {
+		t.Fatalf("unexpected clone call: %q", calls[0])
 	}
-
-	err := cloneBareRepoWithToken("token123", "https://github.com/acme/api.git", filepath.Join(t.TempDir(), "repo.git"))
-	if err != nil {
-		t.Fatalf("expected fallback to succeed, got error: %v", err)
-	}
-	if len(calls) != 2 {
-		t.Fatalf("expected 2 git clone attempts, got %d", len(calls))
-	}
-	if !strings.Contains(calls[0][1], "Authorization: Bearer token123") {
-		t.Fatalf("first clone should use bearer header, got args: %v", calls[0])
-	}
-	if !strings.Contains(calls[1][1], "Authorization: Basic") {
-		t.Fatalf("second clone should use basic header, got args: %v", calls[1])
-	}
-}
-
-func TestBasicAuthCredential(t *testing.T) {
-	got := basicAuthCredential("abc123")
-	want := base64.StdEncoding.EncodeToString([]byte("x-access-token:abc123"))
-	if got != want {
-		t.Fatalf("basicAuthCredential mismatch: got %q want %q", got, want)
-	}
-}
-
-func TestSanitizeGitArgs(t *testing.T) {
-	args := []string{
-		"-c",
-		"http.extraHeader=Authorization: Bearer super-secret-token",
-		"clone",
-	}
-	sanitized := sanitizeGitArgs(args)
-	if strings.Contains(strings.Join(sanitized, " "), "super-secret-token") {
-		t.Fatalf("expected token to be sanitized, got args: %v", sanitized)
+	if !strings.Contains(calls[1], "worktree add") {
+		t.Fatalf("expected worktree add call, got %q", calls[1])
 	}
 }

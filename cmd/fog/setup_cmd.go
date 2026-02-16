@@ -2,27 +2,24 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/darkLord19/foglet/internal/ai"
 	fogenv "github.com/darkLord19/foglet/internal/env"
-	foggithub "github.com/darkLord19/foglet/internal/github"
+	"github.com/darkLord19/foglet/internal/ghcli"
 	"github.com/darkLord19/foglet/internal/state"
 	"github.com/spf13/cobra"
 )
 
 var (
-	setupTokenFlag       string
 	setupDefaultToolFlag string
 )
 
 var setupCmd = &cobra.Command{
 	Use:   "setup",
-	Short: "Onboard Fog with GitHub PAT and default AI tool",
+	Short: "Onboard Fog and configure default AI tool",
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := runSetup(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -32,7 +29,6 @@ var setupCmd = &cobra.Command{
 }
 
 func init() {
-	setupCmd.Flags().StringVar(&setupTokenFlag, "token", "", "GitHub PAT (optional, will prompt if omitted)")
 	setupCmd.Flags().StringVar(&setupDefaultToolFlag, "default-tool", "", "Default AI tool (cursor, claude, gemini, aider)")
 	rootCmd.AddCommand(setupCmd)
 }
@@ -49,28 +45,14 @@ func runSetup() error {
 	}
 	defer func() { _ = store.Close() }()
 
-	token := strings.TrimSpace(setupTokenFlag)
-	if token == "" {
-		token, err = readLine("GitHub PAT: ")
-		if err != nil {
-			return err
-		}
+	fmt.Println("Checking GitHub CLI status...")
+	if !ghcli.IsGhAvailable() {
+		return fmt.Errorf("gh CLI not found. Please install GitHub CLI (https://cli.github.com/)")
 	}
-	if token == "" {
-		return fmt.Errorf("token is required")
+	if !ghcli.IsGhAuthenticated() {
+		return fmt.Errorf("gh CLI not authenticated. Please run 'gh auth login'")
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	client := foggithub.NewClient(token)
-	if err := client.ValidateToken(ctx); err != nil {
-		return err
-	}
-
-	if err := store.SaveGitHubToken(token); err != nil {
-		return err
-	}
+	fmt.Println("GitHub CLI is installed and authenticated.")
 
 	available := availableTools()
 	if len(available) == 0 {
@@ -88,7 +70,6 @@ func runSetup() error {
 	fmt.Println("Setup complete")
 	fmt.Printf("Fog home: %s\n", fogHome)
 	fmt.Printf("Default tool: %s\n", defaultTool)
-	fmt.Println("GitHub PAT saved (encrypted at rest)")
 	return nil
 }
 

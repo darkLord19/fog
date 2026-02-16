@@ -1,8 +1,6 @@
 package main
 
 import (
-	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -11,10 +9,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	fogenv "github.com/darkLord19/foglet/internal/env"
-	foggithub "github.com/darkLord19/foglet/internal/github"
+	"github.com/darkLord19/foglet/internal/ghcli"
 	"github.com/darkLord19/foglet/internal/state"
 	"github.com/spf13/cobra"
 )
@@ -32,7 +29,7 @@ var reposCmd = &cobra.Command{
 
 var reposDiscoverCmd = &cobra.Command{
 	Use:   "discover",
-	Short: "List repositories accessible by the configured GitHub PAT",
+	Short: "List repositories accessible by GitHub CLI",
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := runReposDiscover(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -43,7 +40,7 @@ var reposDiscoverCmd = &cobra.Command{
 
 var reposImportCmd = &cobra.Command{
 	Use:   "import",
-	Short: "Select and register repositories from GitHub",
+	Short: "Select and register repositories from GitHub using gh CLI",
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := runReposImport(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -89,14 +86,14 @@ func runReposDiscover() error {
 	}
 
 	if len(repos) == 0 {
-		fmt.Println("No accessible repositories found for configured token")
+		fmt.Println("No accessible repositories found via gh CLI")
 		return nil
 	}
 
-	fmt.Printf("%-30s %-8s %s\n", "FULL NAME", "PRIVATE", "DEFAULT BRANCH")
+	fmt.Printf("%-40s %-8s %s\n", "FULL NAME", "PRIVATE", "DEFAULT BRANCH")
 	fmt.Println(strings.Repeat("-", 70))
 	for _, repo := range repos {
-		fmt.Printf("%-30s %-8t %s\n", repo.FullName, repo.Private, repo.DefaultBranch)
+		fmt.Printf("%-40s %-8t %s\n", repo.NameWithOwner, repo.IsPrivate, repo.DefaultBranchRef.Name)
 	}
 
 	return nil
@@ -132,47 +129,44 @@ func runReposImport() error {
 	}
 	defer func() { _ = store.Close() }()
 
-	token, found, err := store.GetGitHubToken()
-	if err != nil {
-		return err
-	}
-	if !found {
-		return fmt.Errorf("github token not configured; run `fog setup` first")
-	}
-
 	managedReposDir := fogenv.ManagedReposDir(fogHome)
 	if err := os.MkdirAll(managedReposDir, 0o755); err != nil {
 		return fmt.Errorf("create managed repos dir: %w", err)
 	}
 
 	for _, repo := range selected {
-		alias := repoAlias(repo)
-		repoDir := filepath.Join(managedReposDir, alias)
+		owner, name, err := splitRepoFullName(repo.NameWithOwner)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Skipping invalid repo name %q: %v\n", repo.NameWithOwner, err)
+			continue
+		}
+
+		repoDir := filepath.Join(managedReposDir, owner, name)
 		if err := os.MkdirAll(repoDir, 0o755); err != nil {
 			return fmt.Errorf("create repo dir %s: %w", repoDir, err)
 		}
 		barePath := filepath.Join(repoDir, "repo.git")
 		basePath := filepath.Join(repoDir, "base")
 
-		if err := ensureBareRepoInitialized(token, repo, barePath, basePath); err != nil {
+		if err := ensureBareRepoInitialized(repo, barePath, basePath); err != nil {
 			return err
 		}
 
-		host := repoHost(repo.CloneURL)
-		_, err := store.UpsertRepo(state.Repo{
-			Name:             alias,
-			URL:              repo.CloneURL,
+		host := repoHost(repo.URL)
+		_, err = store.UpsertRepo(state.Repo{
+			Name:             repo.NameWithOwner,
+			URL:              repo.URL,
 			Host:             host,
-			Owner:            repo.OwnerLogin,
-			Repo:             repo.Name,
+			Owner:            owner,
+			Repo:             name,
 			BarePath:         barePath,
 			BaseWorktreePath: basePath,
-			DefaultBranch:    repo.DefaultBranch,
+			DefaultBranch:    repo.DefaultBranchRef.Name,
 		})
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Imported %s as %s\n", repo.FullName, alias)
+		fmt.Printf("Imported %s\n", repo.NameWithOwner)
 	}
 
 	return nil
@@ -198,50 +192,29 @@ func runReposList() error {
 		return nil
 	}
 
-	fmt.Printf("%-20s %-40s %s\n", "NAME", "URL", "DEFAULT BRANCH")
-	fmt.Println(strings.Repeat("-", 90))
+	fmt.Printf("%-40s %-40s %s\n", "NAME", "URL", "DEFAULT BRANCH")
+	fmt.Println(strings.Repeat("-", 100))
 	for _, repo := range repos {
-		fmt.Printf("%-20s %-40s %s\n", repo.Name, repo.URL, repo.DefaultBranch)
+		fmt.Printf("%-40s %-40s %s\n", repo.Name, repo.URL, repo.DefaultBranch)
 	}
 
 	return nil
 }
 
-func discoverGitHubRepos() ([]foggithub.Repo, error) {
-	fogHome, err := fogenv.FogHome()
-	if err != nil {
-		return nil, err
+func discoverGitHubRepos() ([]ghcli.Repo, error) {
+	if !isGhAvailableFn() {
+		return nil, fmt.Errorf("gh CLI invalid or not found")
 	}
-	store, err := state.NewStore(fogHome)
-	if err != nil {
-		return nil, err
+	if !isGhAuthenticatedFn() {
+		return nil, fmt.Errorf("gh CLI not authenticated; run `gh auth login`")
 	}
-	defer func() { _ = store.Close() }()
-
-	token, found, err := store.GetGitHubToken()
-	if err != nil {
-		return nil, err
-	}
-	if !found {
-		return nil, fmt.Errorf("github token not configured; run `fog setup` first")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	client := foggithub.NewClient(token)
-	repos, err := client.ListRepos(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return repos, nil
+	return discoverGhReposFn()
 }
 
-func ensureBareRepoInitialized(token string, repo foggithub.Repo, barePath, basePath string) error {
+func ensureBareRepoInitialized(repo ghcli.Repo, barePath, basePath string) error {
 	if _, err := os.Stat(barePath); errorsIsNotExist(err) {
-		if err := cloneBareRepoWithToken(token, repo.CloneURL, barePath); err != nil {
-			return fmt.Errorf("clone bare repository %s: %w", repo.FullName, err)
+		if err := cloneGhRepoFn(repo.NameWithOwner, barePath); err != nil {
+			return fmt.Errorf("clone bare repository %s: %w", repo.NameWithOwner, err)
 		}
 	} else if err != nil {
 		return fmt.Errorf("check bare repo path %s: %w", barePath, err)
@@ -252,7 +225,7 @@ func ensureBareRepoInitialized(token string, repo foggithub.Repo, barePath, base
 			return fmt.Errorf("create base worktree parent: %w", err)
 		}
 		if err := gitRunner(nil, "--git-dir", barePath, "worktree", "add", basePath); err != nil {
-			return fmt.Errorf("create base worktree for %s: %w", repo.FullName, err)
+			return fmt.Errorf("create base worktree for %s: %w", repo.NameWithOwner, err)
 		}
 	} else if err != nil {
 		return fmt.Errorf("check base worktree path %s: %w", basePath, err)
@@ -261,70 +234,26 @@ func ensureBareRepoInitialized(token string, repo foggithub.Repo, barePath, base
 	return nil
 }
 
-func cloneBareRepoWithToken(token, cloneURL, barePath string) error {
-	token = strings.TrimSpace(token)
-	if token == "" {
-		return fmt.Errorf("token is required")
-	}
-
-	headers := []string{
-		"http.extraHeader=Authorization: Bearer " + token,
-		"http.extraHeader=Authorization: Basic " + basicAuthCredential(token),
-	}
-
-	var lastErr error
-	for _, header := range headers {
-		err := gitRunner(nil, "-c", header, "clone", "--bare", cloneURL, barePath)
-		if err == nil {
-			return nil
-		}
-		lastErr = err
-	}
-
-	if lastErr != nil {
-		return lastErr
-	}
-	return fmt.Errorf("clone failed")
-}
-
-func basicAuthCredential(token string) string {
-	value := "x-access-token:" + strings.TrimSpace(token)
-	return base64.StdEncoding.EncodeToString([]byte(value))
-}
-
 func runGitCommand(extraEnv []string, args ...string) error {
 	cmd := exec.Command("git", args...)
 	cmd.Env = append(os.Environ(), extraEnv...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("git %s: %w\n%s", strings.Join(sanitizeGitArgs(args), " "), err, strings.TrimSpace(string(output)))
+		return fmt.Errorf("git %s: %w\n%s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
 	}
 	return nil
-}
-
-func sanitizeGitArgs(args []string) []string {
-	sanitized := make([]string, len(args))
-	copy(sanitized, args)
-
-	for i, arg := range sanitized {
-		if strings.HasPrefix(arg, "http.extraHeader=Authorization:") {
-			sanitized[i] = "http.extraHeader=Authorization: ***"
-		}
-	}
-
-	return sanitized
 }
 
 func errorsIsNotExist(err error) bool {
 	return err != nil && os.IsNotExist(err)
 }
 
-func selectRepos(repos []foggithub.Repo, selectFlag string) ([]foggithub.Repo, error) {
+func selectRepos(repos []ghcli.Repo, selectFlag string) ([]ghcli.Repo, error) {
 	selectFlag = strings.TrimSpace(selectFlag)
 	if selectFlag == "" {
 		fmt.Println("Available repositories:")
 		for i, repo := range repos {
-			fmt.Printf("  %d. %s\n", i+1, repo.FullName)
+			fmt.Printf("  %d. %s\n", i+1, repo.NameWithOwner)
 		}
 		input, err := readLine("Select repository numbers (comma-separated): ")
 		if err != nil {
@@ -334,7 +263,7 @@ func selectRepos(repos []foggithub.Repo, selectFlag string) ([]foggithub.Repo, e
 		if err != nil {
 			return nil, err
 		}
-		selected := make([]foggithub.Repo, 0, len(indexes))
+		selected := make([]ghcli.Repo, 0, len(indexes))
 		for _, idx := range indexes {
 			selected = append(selected, repos[idx])
 		}
@@ -352,11 +281,11 @@ func selectRepos(repos []foggithub.Repo, selectFlag string) ([]foggithub.Repo, e
 		return nil, fmt.Errorf("--select cannot be empty")
 	}
 
-	selected := make([]foggithub.Repo, 0, len(want))
+	selected := make([]ghcli.Repo, 0, len(want))
 	for _, repo := range repos {
-		if _, ok := want[repo.FullName]; ok {
+		if _, ok := want[repo.NameWithOwner]; ok {
 			selected = append(selected, repo)
-			delete(want, repo.FullName)
+			delete(want, repo.NameWithOwner)
 		}
 	}
 	if len(want) > 0 {
@@ -406,17 +335,8 @@ func parseIndexes(input string, max int) ([]int, error) {
 	return result, nil
 }
 
-func repoAlias(repo foggithub.Repo) string {
-	full := strings.TrimSpace(repo.FullName)
-	if full != "" {
-		return full
-	}
-	owner := strings.TrimSpace(repo.OwnerLogin)
-	name := strings.TrimSpace(repo.Name)
-	if owner == "" {
-		return name
-	}
-	return owner + "/" + name
+func repoAlias(repo ghcli.Repo) string {
+	return repo.NameWithOwner
 }
 
 func repoHost(cloneURL string) string {
