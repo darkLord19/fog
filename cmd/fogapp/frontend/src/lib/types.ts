@@ -96,6 +96,11 @@ export interface DiscoveredRepo {
     html_url?: string;
 }
 
+export interface Branch {
+    name: string;
+    is_default: boolean;
+}
+
 export interface CreateSessionPayload {
     repo: string;
     prompt: string;

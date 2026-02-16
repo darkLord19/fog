@@ -45,6 +45,11 @@ class AppState {
     selectedTab = $state<"timeline" | "diff" | "logs" | "stats">("timeline");
     autoFollowLatest = $state(true);
 
+    // New UI state
+    sessionMode = $state<"plan" | "build">("build");
+    selectedBranch = $state("");
+    chatExpanded = $state(false);
+
     // Detail data
     detailSession = $state<SessionSummary | null>(null);
     detailRuns = $state<RunSummary[]>([]);
@@ -261,7 +266,7 @@ class AppState {
             },
             () => {
                 this.closeStream();
-                this.refreshSessions().catch(() => {});
+                this.refreshSessions().catch(() => { });
             },
             () => {
                 this.closeStream();
