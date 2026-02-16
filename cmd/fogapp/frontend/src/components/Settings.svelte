@@ -16,6 +16,7 @@
         Search,
         Layers,
     } from "@lucide/svelte";
+    import Dropdown from "./Dropdown.svelte";
 
     let loading = $state(false);
     let discoveryLoading = $state(false);
@@ -115,38 +116,38 @@
                     <label for="default-tool" class="label-v2"
                         >Default Intelligence Tool</label
                     >
-                    <div class="select-wrapper">
-                        <select
-                            id="default-tool"
-                            bind:value={defaultTool}
-                            class="select"
-                        >
-                            <option value="" disabled>Select a tool...</option>
-                            {#each appState.settings?.available_tools || [] as t}
-                                <option value={t}>{t}</option>
-                            {/each}
-                        </select>
-                        <div class="select-arrows">▼</div>
-                    </div>
+                    {#snippet toolIcon()}
+                        <Cpu size={14} class="opacity-50" />
+                    {/snippet}
+                    <Dropdown
+                        bind:value={defaultTool}
+                        options={appState.settings?.available_tools || []}
+                        placeholder="Select a tool..."
+                        icon={toolIcon}
+                        class="w-full"
+                    />
                 </div>
 
                 <div class="field-group">
                     <label for="default-model" class="label-v2"
                         >Model Override (Optional)</label
                     >
-                    <div class="select-wrapper">
-                        <select
-                            id="default-model"
-                            bind:value={defaultModel}
-                            class="select"
-                        >
-                            <option value="">default</option>
-                            {#each CURATED_MODELS as m}
-                                <option value={m}>{m}</option>
-                            {/each}
-                        </select>
-                        <div class="select-arrows">▼</div>
-                    </div>
+                    {#snippet modelIcon()}
+                        <Zap size={14} class="opacity-50" />
+                    {/snippet}
+                    <Dropdown
+                        bind:value={defaultModel}
+                        options={[
+                            { value: "", label: "Default (Auto)" },
+                            ...CURATED_MODELS.map((m) => ({
+                                value: m,
+                                label: m,
+                            })),
+                        ]}
+                        placeholder="Default (Auto)"
+                        icon={modelIcon}
+                        class="w-full"
+                    />
                     <span class="input-hint"
                         >Overrides the default model used by the tool</span
                     >
@@ -578,20 +579,6 @@
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
         margin-right: 8px;
-    }
-
-    .select-wrapper {
-        position: relative;
-    }
-
-    .select-arrows {
-        position: absolute;
-        right: 16px;
-        top: 50%;
-        transform: translateY(-50%);
-        pointer-events: none;
-        font-size: 10px;
-        opacity: 0.5;
     }
 
     @keyframes spin {

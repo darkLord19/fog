@@ -22,6 +22,7 @@
         Zap,
     } from "@lucide/svelte";
     import { slide } from "svelte/transition";
+    import Dropdown from "./Dropdown.svelte";
 
     let { onSessionCreated }: { onSessionCreated?: () => void } = $props();
 
@@ -145,48 +146,30 @@
         <div class="chat-header">
             <!-- Repo Selector -->
             <!-- Repo Selector -->
-            <div class="selector-pill">
-                <select id="chat-repo" bind:value={repo} class="select-reset">
-                    <option value="" disabled>Select Repository...</option>
-                    {#each appState.repos as r}
-                        <option value={r.name}>{r.name}</option>
-                    {/each}
-                </select>
-                <LayoutGrid size={12} class="icon-muted pointer-events-none" />
-                <div class="select-wrapper pointer-events-none">
-                    <span class="select-label"
-                        >{repo || "Select Repository..."}</span
-                    >
-                </div>
-                <ChevronDown
-                    size={10}
-                    class="icon-chevron pointer-events-none"
-                />
-            </div>
+            {#snippet repoIcon()}
+                <LayoutGrid size={12} class="opacity-50" />
+            {/snippet}
+
+            <Dropdown
+                bind:value={repo}
+                options={appState.repos.map((r) => r.name)}
+                placeholder="Select Repository..."
+                icon={repoIcon}
+                class="min-w-[180px]"
+            />
 
             <!-- Branch Selector -->
             {#if repo}
-                <div
-                    class="selector-pill"
-                    transition:slide={{ axis: "x", duration: 200 }}
-                >
-                    <select bind:value={branch} class="select-reset">
-                        {#each branches as b}
-                            <option value={b.name}>{b.name}</option>
-                        {/each}
-                    </select>
-                    <GitBranch
-                        size={12}
-                        class="icon-muted pointer-events-none"
-                    />
-                    <div class="select-wrapper pointer-events-none">
-                        <span class="select-label max-w-[120px] truncate">
-                            {branch || "default"}
-                        </span>
-                    </div>
-                    <ChevronDown
-                        size={10}
-                        class="icon-chevron pointer-events-none"
+                {#snippet branchIcon()}
+                    <GitBranch size={12} class="opacity-50" />
+                {/snippet}
+                <div transition:slide={{ axis: "x", duration: 200 }}>
+                    <Dropdown
+                        bind:value={branch}
+                        options={branches.map((b) => b.name)}
+                        placeholder="default"
+                        icon={branchIcon}
+                        class="min-w-[120px]"
                     />
                 </div>
             {/if}
@@ -213,55 +196,39 @@
                 <!-- Add functionality like attachments here later -->
 
                 <!-- Tool Selector -->
-                <div class="selector-pill">
-                    <select
-                        id="chat-tool"
-                        bind:value={tool}
-                        class="select-reset"
-                    >
-                        <option value="" disabled>Select Tool...</option>
-                        {#each appState.settings?.available_tools || [] as t}
-                            <option value={t}>{t}</option>
-                        {/each}
-                    </select>
-                    <Cpu size={12} class="icon-muted pointer-events-none" />
-                    <div class="select-wrapper pointer-events-none">
-                        <span class="select-label">{tool || "auto"}</span>
-                    </div>
-                    <ChevronDown
-                        size={10}
-                        class="icon-chevron pointer-events-none"
-                    />
-                </div>
+                <!-- Tool Selector -->
+                {#snippet toolIcon()}
+                    <Cpu size={12} class="opacity-50" />
+                {/snippet}
+                <Dropdown
+                    bind:value={tool}
+                    options={[
+                        { value: "", label: "Auto (Default)" },
+                        ...(appState.settings?.available_tools || []),
+                    ]}
+                    placeholder="Select Tool..."
+                    icon={toolIcon}
+                    class="min-w-[140px]"
+                />
 
                 <!-- Model Selector -->
                 {#if tool}
-                    <div
-                        class="selector-pill"
-                        transition:slide={{ axis: "x", duration: 200 }}
-                    >
-                        <select
-                            id="chat-model"
+                    {#snippet modelIcon()}
+                        <Zap size={12} class="opacity-50" />
+                    {/snippet}
+                    <div transition:slide={{ axis: "x", duration: 200 }}>
+                        <Dropdown
                             bind:value={model}
-                            class="select-reset"
-                        >
-                            <option value="">Default Model</option>
-                            {#each CURATED_MODELS as m}
-                                <option value={m}>{m}</option>
-                            {/each}
-                        </select>
-                        <Zap size={12} class="icon-muted pointer-events-none" />
-                        <div class="select-wrapper pointer-events-none">
-                            <span
-                                class="select-label"
-                                style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
-                            >
-                                {model || "default"}
-                            </span>
-                        </div>
-                        <ChevronDown
-                            size={10}
-                            class="icon-chevron pointer-events-none"
+                            options={[
+                                { value: "", label: "Default Model" },
+                                ...CURATED_MODELS.map((m) => ({
+                                    value: m,
+                                    label: m,
+                                })),
+                            ]}
+                            placeholder="Default Model"
+                            icon={modelIcon}
+                            class="min-w-[160px]"
                         />
                     </div>
                 {/if}
@@ -271,6 +238,7 @@
             </div>
 
             <div class="footer-right">
+                <!-- Mode Toggle -->
                 <!-- Mode Toggle -->
                 <div class="mode-toggle-wrapper">
                     <button
@@ -290,7 +258,9 @@
                     {#if modeOpen}
                         <div class="mode-dropdown glass">
                             <button
-                                class="mode-option"
+                                class="mode-option {mode === 'plan'
+                                    ? 'selected'
+                                    : ''}"
                                 onclick={() => {
                                     mode = "plan";
                                     modeOpen = false;
@@ -311,7 +281,9 @@
                                     />{/if}
                             </button>
                             <button
-                                class="mode-option"
+                                class="mode-option {mode === 'build'
+                                    ? 'selected'
+                                    : ''}"
                                 onclick={() => {
                                     mode = "build";
                                     modeOpen = false;
@@ -382,61 +354,6 @@
         display: flex;
         align-items: center;
         gap: 8px;
-    }
-
-    .selector-pill {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid var(--color-border);
-        padding: 4px 10px;
-        border-radius: 6px;
-        font-size: 12px;
-        position: relative;
-        height: 28px;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .selector-pill:hover {
-        background: var(--color-bg-hover);
-        border-color: var(--color-border-strong);
-    }
-
-    .select-wrapper {
-        position: relative;
-        display: flex;
-        align-items: center;
-    }
-
-    .select-reset {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        opacity: 0;
-        cursor: pointer;
-        z-index: 10;
-        appearance: none;
-    }
-
-    :global(.pointer-events-none) {
-        pointer-events: none;
-    }
-
-    .select-label {
-        color: var(--color-text-secondary);
-        font-weight: 500;
-    }
-
-    :global(.icon-muted) {
-        opacity: 0.5;
-    }
-
-    :global(.icon-chevron) {
-        opacity: 0.4;
     }
 
     .chat-body {
@@ -523,10 +440,10 @@
 
     .mode-dropdown {
         position: absolute;
-        bottom: 100%;
+        top: calc(100% + 4px);
         right: 0;
         width: 200px;
-        margin-bottom: 8px;
+        margin-top: 4px;
         background: var(--color-bg-elevated);
         border-radius: 12px;
         padding: 4px;
@@ -555,6 +472,13 @@
         color: var(--color-text);
     }
 
+    /* Highlight selected option */
+    .mode-option.selected {
+        background: rgba(250, 204, 21, 0.1);
+        color: var(--color-accent);
+        border: 1px solid rgba(250, 204, 21, 0.2);
+    }
+
     .mode-info {
         flex: 1;
         display: flex;
@@ -564,6 +488,7 @@
     .mode-title {
         font-size: 13px;
         font-weight: 600;
+        color: inherit;
     }
 
     .mode-desc {
