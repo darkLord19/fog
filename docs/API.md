@@ -14,15 +14,23 @@ This API is designed for local clients (desktop app, scripts). It is not an inte
 
 Response:
 - `default_tool` (string)
+- `default_model` (string)
+- `default_models` (object: `{ "<tool>": "<model>" }` per-tool model defaults)
+- `default_autopr` (bool)
+- `default_notify` (bool)
 - `branch_prefix` (string)
 - `has_github_token` (bool)
-- `onboarding_required` (bool)
+- `onboarding_required` (bool, true when PAT is missing or `default_tool` is empty)
 - `available_tools` ([]string)
 
 `PUT /api/settings`
 
 Body:
 - `default_tool` (string, optional)
+- `default_model` (string, optional)
+- `default_models` (object, optional)
+- `default_autopr` (bool, optional)
+- `default_notify` (bool, optional)
 - `branch_prefix` (string, optional)
 - `github_pat` (string, optional)
 
@@ -100,4 +108,3 @@ Body:
 ## Notes
 
 Some cloud/slack endpoints exist in the codebase for experiments, but they are not part of the current desktop-first docs.
-
