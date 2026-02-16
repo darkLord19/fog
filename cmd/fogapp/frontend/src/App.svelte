@@ -6,6 +6,7 @@
   import HomeView from "./components/HomeView.svelte";
   import SessionDetail from "./components/SessionDetail.svelte";
   import SettingsView from "./components/Settings.svelte";
+  import Onboarding from "./components/Onboarding.svelte";
   import { fly, fade } from "svelte/transition";
 
   let initError = $state("");
@@ -51,6 +52,8 @@
           </button>
         </div>
       </div>
+    {:else if appState.settings?.onboarding_required}
+      <Onboarding />
     {:else if appState.currentView === "new"}
       <HomeView />
     {:else if appState.currentView === "detail"}
