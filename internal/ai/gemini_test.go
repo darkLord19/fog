@@ -30,4 +30,3 @@ func TestBuildGeminiHeadlessArgsWithoutStreamJSONOrYolo(t *testing.T) {
 		t.Fatalf("args mismatch: got %v want %v", got, want)
 	}
 }
-

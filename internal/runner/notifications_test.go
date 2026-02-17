@@ -40,4 +40,3 @@ func TestNotificationsEnabledReadsSetting(t *testing.T) {
 		t.Fatal("expected notifications to be disabled when default_notify is false")
 	}
 }
-

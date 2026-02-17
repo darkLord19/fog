@@ -107,5 +107,7 @@ func newTestServer(t *testing.T) *Server {
 		t.Fatalf("set default tool failed: %v", err)
 	}
 
-	return New(r, st, 8080)
+	srv := New(r, st, 8080)
+	srv.skipToolCheck = true
+	return srv
 }

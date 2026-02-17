@@ -20,9 +20,10 @@ import (
 
 // Server provides HTTP API for Fog
 type Server struct {
-	runner     *runner.Runner
-	stateStore *state.Store
-	port       int
+	runner        *runner.Runner
+	stateStore    *state.Store
+	port          int
+	skipToolCheck bool // for testing: bypass isToolAvailable
 }
 
 // New creates a new API server
@@ -286,7 +287,7 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "default_tool cannot be empty", http.StatusBadRequest)
 			return
 		}
-		if !isToolAvailable(tool) {
+		if !s.skipToolCheck && !isToolAvailable(tool) {
 			http.Error(w, fmt.Sprintf("default_tool %q is not available", tool), http.StatusBadRequest)
 			return
 		}
