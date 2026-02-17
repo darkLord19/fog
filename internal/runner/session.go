@@ -948,14 +948,12 @@ func newRunStreamWriter(store *state.Store, runID string) *runStreamWriter {
 }
 
 func (w *runStreamWriter) Append(chunk string) {
-	chunk = strings.TrimSpace(chunk)
 	if chunk == "" {
 		return
 	}
 
 	w.mu.Lock()
 	w.buffer.WriteString(chunk)
-	w.buffer.WriteByte('\n')
 	shouldFlush := w.buffer.Len() >= 1000 || time.Since(w.lastFlush) >= 600*time.Millisecond
 	w.mu.Unlock()
 	if shouldFlush {
@@ -969,13 +967,13 @@ func (w *runStreamWriter) Flush() {
 	}
 
 	w.mu.Lock()
-	payload := strings.TrimSpace(w.buffer.String())
+	payload := w.buffer.String()
 	w.buffer.Reset()
-	if payload != "" {
+	if strings.TrimSpace(payload) != "" {
 		w.lastFlush = time.Now().UTC()
 	}
 	w.mu.Unlock()
-	if payload == "" {
+	if strings.TrimSpace(payload) == "" {
 		return
 	}
 

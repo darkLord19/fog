@@ -33,3 +33,21 @@ func TestStreamJSONParserIgnoresUserRole(t *testing.T) {
 		t.Fatalf("unexpected parser output: %q", parser.Output())
 	}
 }
+
+func TestStreamJSONParserPreservesLeadingSpacesAcrossChunks(t *testing.T) {
+	var chunks []string
+	parser := newStreamJSONParser(func(chunk string) {
+		chunks = append(chunks, chunk)
+	})
+
+	parser.Feed([]byte(`{"type":"assistant","text":"Hello"}` + "\n"))
+	parser.Feed([]byte(`{"type":"assistant","text":" world"}` + "\n"))
+	parser.Close()
+
+	if parser.Output() != "Hello world" {
+		t.Fatalf("unexpected parser output: %q", parser.Output())
+	}
+	if len(chunks) != 2 || chunks[0] != "Hello" || chunks[1] != " world" {
+		t.Fatalf("unexpected streamed chunks: %+v", chunks)
+	}
+}

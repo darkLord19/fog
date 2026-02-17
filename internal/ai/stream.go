@@ -58,6 +58,9 @@ func (p *streamJSONParser) processLine(line string) {
 
 	var payload map[string]any
 	if err := json.Unmarshal([]byte(line), &payload); err != nil {
+		if p.onChunk != nil {
+			p.onChunk(line + "\n")
+		}
 		return
 	}
 
@@ -66,7 +69,7 @@ func (p *streamJSONParser) processLine(line string) {
 	}
 
 	text := extractStreamText(payload)
-	if text == "" {
+	if strings.TrimSpace(text) == "" {
 		return
 	}
 	_, _ = p.output.WriteString(text)
@@ -188,15 +191,15 @@ func flattenText(value any, depth int) string {
 	}
 	switch node := value.(type) {
 	case string:
-		return strings.TrimSpace(node)
+		return node
 	case []any:
-		var parts []string
+		var b strings.Builder
 		for _, item := range node {
 			if text := flattenText(item, depth-1); text != "" {
-				parts = append(parts, text)
+				b.WriteString(text)
 			}
 		}
-		return strings.TrimSpace(strings.Join(parts, " "))
+		return b.String()
 	case map[string]any:
 		for _, key := range []string{"output_text", "text", "delta", "content", "message", "value"} {
 			if text := flattenText(node[key], depth-1); text != "" {
