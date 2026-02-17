@@ -331,3 +331,46 @@ func TestLookupConversationIDFindsLatestPriorRunSessionID(t *testing.T) {
 		t.Fatalf("unexpected conversation id: got %q want %q", got, "session-token-1")
 	}
 }
+
+func TestExtractCommitMessage(t *testing.T) {
+	tests := []struct {
+		name     string
+		output   string
+		expected string
+	}{
+		{
+			name:     "Full format",
+			output:   "The changes have been made.\n<commit_message>feat: add something</commit_message>\nHope this helps!",
+			expected: "feat: add something",
+		},
+		{
+			name:     "No closing tag",
+			output:   "Here it is: <commit_message>feat: add something",
+			expected: "feat: add something",
+		},
+		{
+			name:     "Multiple tags (uses last)",
+			output:   "<commit_message>fix: previous</commit_message>\n<commit_message>feat: final</commit_message>",
+			expected: "feat: final",
+		},
+		{
+			name:     "Empty tags",
+			output:   "<commit_message></commit_message>",
+			expected: "",
+		},
+		{
+			name:     "No tags",
+			output:   "Just some output without tags.",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractCommitMessage(tt.output)
+			if got != tt.expected {
+				t.Errorf("extractCommitMessage() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}

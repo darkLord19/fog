@@ -31,6 +31,7 @@ var (
 	flagValidateCmd string
 	flagAsync       bool
 	flagJSON        bool
+	flagPRTitle     string
 )
 
 func main() {
@@ -106,6 +107,7 @@ func init() {
 	runCmd.Flags().StringVar(&flagPrompt, "prompt", "", "Task prompt (required)")
 	runCmd.Flags().BoolVar(&flagCommit, "commit", false, "Commit changes after AI completes")
 	runCmd.Flags().BoolVar(&flagPR, "pr", false, "Create pull request")
+	runCmd.Flags().StringVar(&flagPRTitle, "pr-title", "", "Pull request title (requires --pr)")
 	runCmd.Flags().BoolVar(&flagValidate, "validate", false, "Run validation after AI")
 	runCmd.Flags().StringVar(&flagBaseBranch, "base", "main", "Base branch for PR")
 	runCmd.Flags().StringVar(&flagSetupCmd, "setup-cmd", "", "Setup command to run")
@@ -161,6 +163,7 @@ func runTask() error {
 	if err != nil {
 		return err
 	}
+	r.SetStateStore(stateStore)
 
 	// Create task
 	t := &task.Task{
@@ -179,6 +182,7 @@ func runTask() error {
 			SetupCmd:    flagSetupCmd,
 			ValidateCmd: flagValidateCmd,
 			Async:       flagAsync,
+			PRTitle:     flagPRTitle,
 		},
 	}
 

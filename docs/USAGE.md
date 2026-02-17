@@ -122,18 +122,23 @@ fog run \
   --tool gemini \
   --prompt "Add JWT auth" \
   --commit \
-  --pr
+  --pr \
+  --pr-title "feat: Add JWT auth"
 ```
 
 ## AI Tools
 
 Fog executes tools you already installed:
 - `claude` / `claude-code`
-- `cursor-agent`
+- `agent`
 - `gemini`
 - `aider`
 
 Adapters prefer headless/streaming modes when available and fall back to plain output when needed.
+
+## Desktop Notifications
+
+When enabled (`default_notify=true`), Fog sends macOS desktop notifications on run completion/failure (sessions + legacy tasks).
 
 ## Local Storage
 

@@ -51,6 +51,7 @@ type CreateSessionRequest struct {
 	BaseBranch  string `json:"base_branch,omitempty"`
 	CommitMsg   string `json:"commit_msg,omitempty"`
 	Async       *bool  `json:"async,omitempty"`
+	PRTitle     string `json:"pr_title,omitempty"`
 }
 
 // FollowUpRunRequest is the payload for POST /api/sessions/{id}/runs.
@@ -72,6 +73,7 @@ type ForkSessionRequest struct {
 	BaseBranch  string `json:"base_branch,omitempty"`
 	CommitMsg   string `json:"commit_msg,omitempty"`
 	Async       *bool  `json:"async,omitempty"`
+	PRTitle     string `json:"pr_title,omitempty"`
 }
 
 type createSessionResponse struct {
@@ -259,6 +261,7 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 		ValidateCmd: strings.TrimSpace(req.ValidateCmd),
 		BaseBranch:  strings.TrimSpace(req.BaseBranch),
 		CommitMsg:   strings.TrimSpace(req.CommitMsg),
+		PRTitle:     strings.TrimSpace(req.PRTitle),
 	}
 
 	if async {
@@ -429,6 +432,7 @@ func (s *Server) createForkSession(w http.ResponseWriter, r *http.Request, sourc
 		ValidateCmd: strings.TrimSpace(req.ValidateCmd),
 		BaseBranch:  strings.TrimSpace(req.BaseBranch),
 		CommitMsg:   strings.TrimSpace(req.CommitMsg),
+		PRTitle:     strings.TrimSpace(req.PRTitle),
 	}
 	if req.AutoPR != nil {
 		opts.HasAutoPR = true

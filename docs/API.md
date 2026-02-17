@@ -17,7 +17,7 @@ Response:
 - `default_model` (string)
 - `default_models` (object: `{ "<tool>": "<model>" }` per-tool model defaults)
 - `default_autopr` (bool)
-- `default_notify` (bool)
+- `default_notify` (bool; when true, Fog sends macOS desktop notifications on run completion/failure when available)
 - `branch_prefix` (string)
 - `gh_installed` (bool)
 - `gh_authenticated` (bool)
@@ -74,6 +74,7 @@ Body:
 - `model` (optional)
 - `branch_name` (optional; generated from prompt when omitted)
 - `autopr` (optional)
+- `pr_title` (optional; when `autopr` is true and a PR is created, uses this title)
 - `setup_cmd`, `validate`, `validate_cmd`, `base_branch`, `commit_msg` (optional)
 - `async` (optional, default true)
 
@@ -82,6 +83,11 @@ Follow-ups:
 - `POST /api/sessions/{id}/runs` (body: `{ "prompt": "...", "async": true }`)
 - `GET /api/sessions/{id}/runs`
 - `GET /api/sessions/{id}/runs/{run_id}/events`
+
+Fork:
+
+- `POST /api/sessions/{id}/fork`
+  - Body supports: `prompt` (required), `branch_name`, `tool`, `model`, `autopr`, `pr_title`, `setup_cmd`, `validate`, `validate_cmd`, `base_branch`, `commit_msg`, `async` (all optional unless noted)
 
 Streaming:
 
@@ -108,7 +114,7 @@ Body:
   "branch":"fog/task-branch",
   "prompt":"Do thing",
   "ai_tool":"claude",
-  "options":{"async":true,"commit":false}
+  "options":{"async":true,"commit":false,"create_pr":true,"pr_title":"feat: Do thing"}
 }
 ```
 

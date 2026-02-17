@@ -48,6 +48,7 @@ type Options struct {
 	ValidateCmd  string `json:"validate_cmd"`
 	Async        bool   `json:"async"`
 	SlackChannel string `json:"slack_channel,omitempty"`
+	PRTitle      string `json:"pr_title,omitempty"`
 }
 
 // StateTransition represents a state change
