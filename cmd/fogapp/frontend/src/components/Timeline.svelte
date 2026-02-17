@@ -116,7 +116,9 @@
                                             <span class="log-type"
                                                 >[{evt.type}]</span
                                             >
-                                            <span class="log-msg">{evt.message}</span>
+                                            <span class="log-msg"
+                                                >{evt.message || evt.data}</span
+                                            >
                                         </div>
                                     {/each}
                                 </div>

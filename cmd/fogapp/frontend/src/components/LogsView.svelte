@@ -17,9 +17,11 @@
         filterQuery
             ? allEvents.filter((evt) => {
                   const message = (evt.message ?? "").toLowerCase();
+                  const data = (evt.data ?? "").toLowerCase();
                   const type = (evt.type ?? "").toLowerCase();
                   return (
                       message.includes(filterQuery) ||
+                      data.includes(filterQuery) ||
                       type.includes(filterQuery)
                   );
               })
@@ -81,14 +83,16 @@
                     {#each filteredEvents as evt}
                         <div
                             class="terminal-line"
-                            class:error={evt.type === "ERROR"}
-                            class:warn={evt.type === "WARN"}
+                            class:error={evt.type?.toLowerCase() === "error"}
+                            class:warn={evt.type?.toLowerCase() === "warn"}
                         >
                             <span class="line-ts"
                                 >[{new Date(evt.ts).toLocaleTimeString()}]</span
                             >
                             <span class="line-tag">[{evt.type}]</span>
-                            <span class="line-content">{evt.message}</span>
+                            <span class="line-content"
+                                >{evt.message || evt.data}</span
+                            >
                         </div>
                     {/each}
                     <div class="terminal-cursor"></div>
