@@ -9,6 +9,7 @@
         Pencil,
         X,
         Activity,
+        GitPullRequest,
     } from "@lucide/svelte";
 
     let expanded = $state(true);
@@ -48,6 +49,11 @@
                             >
                                 {task.latest_run?.prompt || "Untitled task"}
                             </span>
+                            {#if task.pr_url}
+                                <span class="pr-badge" title="PR Created">
+                                    <GitPullRequest size={12} />
+                                </span>
+                            {/if}
                             <button
                                 class="link-icon"
                                 onclick={() => openSession(task.id)}
@@ -181,6 +187,13 @@
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+    }
+
+    .pr-badge {
+        display: flex;
+        align-items: center;
+        color: var(--color-success);
+        margin-right: 4px;
     }
 
     .link-icon {

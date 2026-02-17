@@ -26,6 +26,8 @@
         ExternalLink,
         Search,
         Layers,
+        GitPullRequest,
+        X,
     } from "@lucide/svelte";
 
     let followupPrompt = $state("");
@@ -124,6 +126,12 @@
             handleFollowup();
         }
     }
+
+    function openPR() {
+        if (session?.pr_url) {
+            window.runtime.BrowserOpenURL(session.pr_url);
+        }
+    }
 </script>
 
 {#if session}
@@ -136,7 +144,9 @@
                         <Layers size={14} class="crumb-icon" />
                         <span class="repo-tag">{session.repo_name}</span>
                         <span class="sep">/</span>
-                        <span class="session-id">{session.id.substring(0, 8)}</span>
+                        <span class="session-id"
+                            >{session.id.substring(0, 8)}</span
+                        >
                     </div>
                     <div id="detail-title" class="session-title">
                         {titleText}
@@ -173,6 +183,7 @@
                                 <span>Re-run</span>
                             </button>
                         {/if}
+
                         <button
                             id="detail-fork"
                             class="action-btn secondary"
@@ -183,6 +194,22 @@
                             <GitFork size={16} />
                             <span>Fork</span>
                         </button>
+
+                        {#if session.pr_url}
+                            <button
+                                class="action-btn success-soft"
+                                onclick={openPR}
+                                title="View Pull Request"
+                            >
+                                <GitPullRequest size={16} />
+                                <span>Open PR</span>
+                                <ExternalLink
+                                    size={12}
+                                    class="btn-extra-icon"
+                                />
+                            </button>
+                        {/if}
+
                         <button
                             id="detail-open"
                             class="action-btn primary"
@@ -257,6 +284,7 @@
                         {/if}
                     </button>
                 </div>
+
                 <div class="command-hints">
                     <span><b>Shift + Enter</b> for new line</span>
                     <span class="sep">•</span>
@@ -447,6 +475,17 @@
     .action-btn.danger:hover {
         background: rgba(239, 68, 68, 0.1);
         border-color: rgba(239, 68, 68, 0.2);
+    }
+
+    .action-btn.success-soft {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--color-success);
+        border-color: rgba(16, 185, 129, 0.2);
+    }
+
+    .action-btn.success-soft:hover {
+        background: rgba(16, 185, 129, 0.2);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
     }
 
     .view-nav {

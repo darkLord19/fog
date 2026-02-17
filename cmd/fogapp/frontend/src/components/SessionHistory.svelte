@@ -7,6 +7,7 @@
         CheckCircle2,
         Clock,
         MoreHorizontal,
+        GitPullRequest,
     } from "@lucide/svelte";
 
     let expanded = $state(true);
@@ -16,6 +17,13 @@
 
     function openSession(id: string) {
         appState.selectSession(id);
+    }
+
+    function openPR(e: MouseEvent, url: string) {
+        e.stopPropagation();
+        if (url) {
+            window.runtime.BrowserOpenURL(url);
+        }
     }
 </script>
 
@@ -41,7 +49,20 @@
                     onclick={() => openSession(session.id)}
                 >
                     <div class="card-icon">
-                        <CheckCircle2 size={16} class="text-success" />
+                        {#if session.pr_url}
+                            <button
+                                class="pr-icon-btn"
+                                onclick={(e) => openPR(e, session.pr_url)}
+                                title="Open Pull Request"
+                            >
+                                <GitPullRequest
+                                    size={16}
+                                    class="text-success"
+                                />
+                            </button>
+                        {:else}
+                            <CheckCircle2 size={16} class="text-success" />
+                        {/if}
                     </div>
                     <div class="card-content">
                         <span
@@ -205,6 +226,23 @@
         font-size: 13px;
         border: 1px dashed var(--color-border);
         border-radius: 8px;
+    }
+
+    .pr-icon-btn {
+        background: none;
+        border: none;
+        padding: 4px;
+        margin: -4px;
+        color: inherit;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        border-radius: 4px;
+        transition: background 0.2s;
+    }
+
+    .pr-icon-btn:hover {
+        background: rgba(16, 185, 129, 0.1);
     }
 
     /* Utility classes from global css reference */

@@ -118,6 +118,15 @@ class AppState {
             await this.refreshAll();
             this.daemonStatus = "connected";
             this.startPolling();
+
+            // Handle deep link (session redirect)
+            const params = new URLSearchParams(window.location.search);
+            const sessionID = params.get("session");
+            if (sessionID) {
+                // Clear the parameter from the URL without reloading to avoid loops or confusing state
+                window.history.replaceState({}, document.title, window.location.pathname);
+                await this.selectSession(sessionID);
+            }
         } catch {
             this.daemonStatus = "unavailable";
             throw new Error("Initialization failed");

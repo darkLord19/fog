@@ -121,6 +121,7 @@ export interface CreateSessionPayload {
     base_branch?: string;
     commit_msg?: string;
     async?: boolean;
+    pr_title?: string;
 }
 
 export interface CreateSessionResponse {

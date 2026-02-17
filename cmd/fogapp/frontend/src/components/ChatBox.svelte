@@ -9,19 +9,20 @@
     } from "$lib/types";
     import { toast } from "svelte-sonner";
     import {
-        Sparkles,
         ChevronDown,
         LayoutGrid,
         GitBranch,
         ArrowRight,
         Check,
-        Play,
         Hammer,
         Bot,
         Cpu,
         Zap,
+        GitPullRequest,
+        Settings,
+        X,
     } from "@lucide/svelte";
-    import { slide } from "svelte/transition";
+    import { slide, fade, fly } from "svelte/transition";
     import Dropdown from "./Dropdown.svelte";
 
     let { onSessionCreated }: { onSessionCreated?: () => void } = $props();
@@ -38,6 +39,14 @@
     let tool = $state("");
     let model = $state("");
     let mode = $state<"plan" | "build">("build"); // Mapped to internal logic
+
+    // PR State
+    let createPR = $state(false);
+    let showPRConfig = $state(false);
+    let prBranch = $state("");
+    let prTitle = $state("");
+    let tempPrBranch = $state("");
+    let tempPrTitle = $state("");
 
     // Models available for the currently-selected tool
     let availableModels = $derived(getModelsForTool(tool));
@@ -119,7 +128,10 @@
                 repo,
                 prompt: prompt.trim(),
                 async: true,
-                autopr: appState.settings?.default_autopr ?? false,
+                autopr:
+                    createPR || (appState.settings?.default_autopr ?? false),
+                pr_title: prTitle,
+                branch_name: prBranch,
             };
 
             if (branch) payload.base_branch = branch;
@@ -156,6 +168,18 @@
         if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
             handleSubmit();
         }
+    }
+
+    function openPRConfig() {
+        tempPrBranch = prBranch;
+        tempPrTitle = prTitle;
+        showPRConfig = true;
+    }
+
+    function savePRConfig() {
+        prBranch = tempPrBranch;
+        prTitle = tempPrTitle;
+        showPRConfig = false;
     }
 </script>
 
@@ -251,8 +275,77 @@
                         />
                     </div>
                 {/if}
-                {#if branch}
-                    <span class="branch-tag">{branch}</span>
+
+                <!-- Create PR Toggle -->
+                <div class="divider"></div>
+                <button
+                    class="icon-btn {createPR ? 'active' : ''}"
+                    onclick={() => (createPR = !createPR)}
+                    title="Create PR"
+                >
+                    <GitPullRequest size={14} />
+                    <span class="btn-label">Create PR</span>
+                </button>
+
+                {#if createPR}
+                    <button
+                        class="icon-btn"
+                        onclick={openPRConfig}
+                        title="Configure PR"
+                        transition:slide={{ axis: "x" }}
+                    >
+                        <Settings size={14} />
+                    </button>
+
+                    {#if showPRConfig}
+                        <div
+                            class="pr-backdrop"
+                            onclick={() => (showPRConfig = false)}
+                            transition:fade={{ duration: 200 }}
+                        ></div>
+                        <div
+                            class="pr-config-modal glass"
+                            transition:fly={{ y: 20, duration: 200 }}
+                        >
+                            <div class="pr-header">
+                                <span>PR Configuration</span>
+                                <button
+                                    class="close-btn"
+                                    onclick={() => (showPRConfig = false)}
+                                >
+                                    <X size={12} />
+                                </button>
+                            </div>
+                            <div class="pr-field">
+                                <label for="pr-branch">Branch Name</label>
+                                <input
+                                    id="pr-branch"
+                                    type="text"
+                                    bind:value={tempPrBranch}
+                                    placeholder="fog/feature-name"
+                                    class="pr-input"
+                                />
+                            </div>
+                            <div class="pr-field">
+                                <label for="pr-title">PR Title</label>
+                                <input
+                                    id="pr-title"
+                                    type="text"
+                                    bind:value={tempPrTitle}
+                                    placeholder="feat: description"
+                                    class="pr-input"
+                                />
+                            </div>
+                            <div class="pr-actions">
+                                <button
+                                    class="btn btn-primary btn-sm w-full"
+                                    onclick={savePRConfig}
+                                >
+                                    OK
+                                </button>
+                            </div>
+                        </div>
+                    {/if}
                 {/if}
             </div>
 
@@ -420,14 +513,7 @@
         display: flex;
         align-items: center;
         gap: 8px;
-    }
-
-    .branch-tag {
-        font-size: 11px;
-        padding: 2px 6px;
-        background: rgba(59, 130, 246, 0.1);
-        color: var(--color-accent);
-        border-radius: 4px;
+        position: relative;
     }
 
     .footer-right {
@@ -557,5 +643,125 @@
         to {
             transform: rotate(360deg);
         }
+    }
+
+    .divider {
+        width: 1px;
+        height: 16px;
+        background: var(--color-border);
+        margin: 0 4px;
+    }
+
+    .icon-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: transparent;
+        border: none;
+        color: var(--color-text-muted);
+        padding: 6px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .icon-btn:hover {
+        background: var(--color-bg-hover);
+        color: var(--color-text);
+    }
+
+    .icon-btn.active {
+        color: var(--color-accent);
+        background: rgba(59, 130, 246, 0.1);
+    }
+
+    .btn-label {
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .pr-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 99;
+        backdrop-filter: blur(2px);
+    }
+
+    .pr-config-modal {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 320px;
+        background: var(--color-bg-elevated);
+        border: 1px solid var(--color-border-accent);
+        border-radius: 16px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        z-index: 100;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    }
+
+    .pr-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--color-text);
+    }
+
+    .close-btn {
+        background: transparent;
+        border: none;
+        color: var(--color-text-muted);
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
+    }
+    .close-btn:hover {
+        background: var(--color-bg-hover);
+        color: var(--color-text);
+    }
+
+    .pr-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .pr-field label {
+        font-size: 11px;
+        color: var(--color-text-secondary);
+    }
+
+    .pr-input {
+        background: var(--color-bg-input);
+        border: 1px solid var(--color-border);
+        border-radius: 6px;
+        padding: 6px 8px;
+        font-size: 12px;
+        color: var(--color-text);
+        outline: none;
+    }
+
+    .pr-input:focus {
+        border-color: var(--color-accent);
+    }
+
+    .pr-actions {
+        margin-top: 8px;
+    }
+
+    .w-full {
+        width: 100%;
+    }
+
+    :global(.btn-sm) {
+        padding: 6px 12px;
+        font-size: 12px;
     }
 </style>

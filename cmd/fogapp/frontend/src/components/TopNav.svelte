@@ -24,16 +24,6 @@
   </div>
 
   <div class="nav-right">
-    <div class="status-pill" title={appState.daemonStatus}>
-      <div
-        class="status-dot"
-        class:connected={appState.daemonStatus === "connected"}
-      ></div>
-      <span class="status-text">{appState.daemonStatus}</span>
-    </div>
-
-    <div class="divider"></div>
-
     <button
       id="nav-settings"
       class="nav-icon-btn {appState.currentView === 'settings' ? 'active' : ''}"
@@ -105,42 +95,6 @@
     display: flex;
     align-items: center;
     gap: 16px;
-  }
-
-  .status-pill {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 99px;
-    border: 1px solid var(--color-border);
-  }
-
-  .status-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--color-text-muted);
-  }
-
-  .status-dot.connected {
-    background: var(--color-success);
-    box-shadow: 0 0 6px var(--color-success);
-  }
-
-  .status-text {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    color: var(--color-text-muted);
-    letter-spacing: 0.02em;
-  }
-
-  .divider {
-    width: 1px;
-    height: 20px;
-    background: var(--color-border);
   }
 
   .nav-icon-btn {

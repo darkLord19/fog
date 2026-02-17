@@ -2,7 +2,7 @@
     import type { SessionSummary } from "$lib/types";
     import { appState } from "$lib/stores.svelte";
     import { formatRelativeTime, truncatePrompt } from "$lib/utils";
-    import { MessageSquare } from "@lucide/svelte";
+    import { MessageSquare, GitPullRequest } from "@lucide/svelte";
 
     let { session }: { session: SessionSummary } = $props();
 
@@ -24,7 +24,11 @@
 >
     <div class="status-indicator"></div>
     <div class="item-icon">
-        <MessageSquare size={14} opacity={isActive ? 1 : 0.6} />
+        {#if session.pr_url}
+            <GitPullRequest size={14} class="text-success-soft" />
+        {:else}
+            <MessageSquare size={14} opacity={isActive ? 1 : 0.6} />
+        {/if}
     </div>
     <div class="item-content">
         <span class="item-title">{truncatePrompt(prompt)}</span>
@@ -96,6 +100,11 @@
         width: 20px;
         height: 20px;
         color: var(--color-accent);
+    }
+
+    :global(.text-success-soft) {
+        color: var(--color-success);
+        opacity: 0.8;
     }
 
     .item-content {
