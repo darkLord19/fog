@@ -178,11 +178,13 @@ func (r *Runner) prepareSession(opts StartSessionOptions) (state.Session, state.
 		return state.Session{}, state.Run{}, sessionRunOptions{}, errors.New("tool is required")
 	case opts.Prompt == "":
 		return state.Session{}, state.Run{}, sessionRunOptions{}, errors.New("prompt is required")
+	case opts.BaseBranch == "":
+		return state.Session{}, state.Run{}, sessionRunOptions{}, errors.New("base branch is required")
 	}
 
 	runID := uuid.New().String()
 	worktreeName := runWorktreeName(opts.Branch, runID)
-	worktreePath, err := r.createWorktreePathWithName(opts.RepoPath, worktreeName, opts.Branch)
+	worktreePath, err := r.createWorktreePathWithName(opts.RepoPath, worktreeName, opts.Branch, opts.BaseBranch)
 	if err != nil {
 		return state.Session{}, state.Run{}, sessionRunOptions{}, err
 	}
@@ -589,7 +591,7 @@ func (r *Runner) executeSessionRun(session state.Session, run state.Run, opts se
 		return errors.New("state store not configured")
 	}
 	if strings.TrimSpace(opts.BaseBranch) == "" {
-		opts.BaseBranch = "main"
+		return errors.New("base branch is required")
 	}
 	if strings.TrimSpace(run.WorktreePath) == "" {
 		run.WorktreePath = strings.TrimSpace(session.WorktreePath)

@@ -248,6 +248,14 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 		async = *req.Async
 	}
 
+	baseBranch := strings.TrimSpace(req.BaseBranch)
+	if baseBranch == "" {
+		baseBranch = strings.TrimSpace(repo.DefaultBranch)
+	}
+	if baseBranch == "" {
+		baseBranch = "main"
+	}
+
 	opts := runner.StartSessionOptions{
 		RepoName:    repo.Name,
 		RepoPath:    repo.BaseWorktreePath,
@@ -259,7 +267,7 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 		SetupCmd:    strings.TrimSpace(req.SetupCmd),
 		Validate:    req.Validate,
 		ValidateCmd: strings.TrimSpace(req.ValidateCmd),
-		BaseBranch:  strings.TrimSpace(req.BaseBranch),
+		BaseBranch:  baseBranch,
 		CommitMsg:   strings.TrimSpace(req.CommitMsg),
 		PRTitle:     strings.TrimSpace(req.PRTitle),
 	}
