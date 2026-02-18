@@ -12,6 +12,7 @@ import (
 
 	"github.com/darkLord19/foglet/internal/ai"
 	"github.com/darkLord19/foglet/internal/editor"
+	"github.com/darkLord19/foglet/internal/git"
 	"github.com/darkLord19/foglet/internal/runner"
 	"github.com/darkLord19/foglet/internal/state"
 	"github.com/darkLord19/foglet/internal/toolcfg"
@@ -233,7 +234,7 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	branch, err := s.resolveBranchName(req.BranchName, req.Prompt)
+	branch, err := s.resolveBranchName(repo.BaseWorktreePath, req.BranchName, req.Prompt)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -411,7 +412,7 @@ func (s *Server) createForkSession(w http.ResponseWriter, r *http.Request, sourc
 		return
 	}
 
-	branch, err := s.resolveBranchName(req.BranchName, req.Prompt)
+	branch, err := s.resolveBranchName(sourceSession.WorktreePath, req.BranchName, req.Prompt)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -750,7 +751,7 @@ func runGitInWorktree(worktreePath string, args ...string) (string, error) {
 	return string(out), nil
 }
 
-func (s *Server) resolveBranchName(requested, prompt string) (string, error) {
+func (s *Server) resolveBranchName(repoPath, requested, prompt string) (string, error) {
 	requested = strings.TrimSpace(requested)
 	if requested != "" {
 		return validateBranchName(requested)
@@ -765,11 +766,37 @@ func (s *Server) resolveBranchName(requested, prompt string) (string, error) {
 	}
 
 	slug := slugifyPrompt(prompt)
-	branch := strings.Trim(prefix, "/") + "/" + slug
-	if len(branch) > 255 {
-		branch = strings.Trim(branch[:255], "/.-")
+	baseBranch := strings.Trim(prefix, "/") + "/" + slug
+	if len(baseBranch) > 255 {
+		baseBranch = strings.Trim(baseBranch[:255], "/.-")
 	}
-	return validateBranchName(branch)
+
+	g := git.New(repoPath)
+
+	truncateWithSuffix := func(base, suffix string) string {
+		maxBaseLen := 255 - len(suffix)
+		if maxBaseLen < 1 {
+			maxBaseLen = 1
+		}
+		if len(base) > maxBaseLen {
+			base = strings.Trim(base[:maxBaseLen], "/.-")
+		}
+		return base + suffix
+	}
+
+	for i := 0; i <= 100; i++ {
+		branch := baseBranch
+		if i > 0 {
+			branch = truncateWithSuffix(baseBranch, fmt.Sprintf("-%d", i))
+		}
+		if !g.BranchExists(branch) {
+			return validateBranchName(branch)
+		}
+	}
+
+	// Fallback to a short random-ish suffix to avoid exceeding git's 255-byte limit.
+	suffix := "-" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	return validateBranchName(truncateWithSuffix(baseBranch, suffix))
 }
 
 func validateBranchName(value string) (string, error) {

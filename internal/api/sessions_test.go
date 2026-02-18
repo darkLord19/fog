@@ -157,7 +157,13 @@ func TestResolveBranchNameUsesPrefixAndSlugifiesPrompt(t *testing.T) {
 		t.Fatalf("set branch prefix failed: %v", err)
 	}
 
-	branch, err := srv.resolveBranchName("", "Add OTP Login!!")
+	repoPath := t.TempDir()
+	runGit(t, repoPath, "init")
+	runGit(t, repoPath, "config", "user.email", "test@example.com")
+	runGit(t, repoPath, "config", "user.name", "Test User")
+	runGit(t, repoPath, "commit", "--allow-empty", "-m", "init")
+
+	branch, err := srv.resolveBranchName(repoPath, "", "Add OTP Login!!")
 	if err != nil {
 		t.Fatalf("resolveBranchName failed: %v", err)
 	}
@@ -220,4 +226,48 @@ func seedSessionFixture(t *testing.T, srv *Server) {
 	}); err != nil {
 		t.Fatalf("create run failed: %v", err)
 	}
+}
+
+func TestResolveBranchName_Unique(t *testing.T) {
+	// 1. Setup a dummy repo
+	repoPath := t.TempDir()
+	runGit(t, repoPath, "init")
+	runGit(t, repoPath, "config", "user.email", "test@example.com")
+	runGit(t, repoPath, "config", "user.name", "Test User")
+	runGit(t, repoPath, "commit", "--allow-empty", "-m", "init")
+
+	// 2. Setup Server with real store but mock runner (runner is interface in struct? no, it's *runner.Runner)
+	// We only need stateStore for resolveBranchName
+	store, err := state.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("new store: %v", err)
+	}
+	defer store.Close()
+
+	srv := &Server{
+		stateStore: store,
+		// runner not needed for resolveBranchName
+	}
+
+	// 3. Create a branch "fog/task-collision"
+	branchName := "fog/task-collision"
+	runGit(t, repoPath, "branch", branchName)
+
+	// 4. Call resolveBranchName with a prompt that produces "task-collision" slug
+	// Stub slugify by passing a prompt that slugs to "task-collision"
+	prompt := "Task Collision"
+
+	uniqueName, err := srv.resolveBranchName(repoPath, "", prompt)
+	if err != nil {
+		t.Fatalf("resolveBranchName failed: %v", err)
+	}
+
+	// 5. Assert uniqueName is NOT "fog/task-collision"
+	if uniqueName == branchName {
+		t.Errorf("Expected unique name, got collision: %s", uniqueName)
+	}
+	if !strings.HasPrefix(uniqueName, "fog/task-collision-") {
+		t.Errorf("Expected suffix on collision, got: %s", uniqueName)
+	}
+	t.Logf("Resolved unique branch: %s", uniqueName)
 }
