@@ -343,7 +343,7 @@ func TestHelperProcess(t *testing.T) {
 				os.Exit(0)
 			case "clone_fallback":
 				if hasFilter {
-					_, _ = os.Stderr.WriteString("error: unknown option `--filter=blob:none`\n")
+					_, _ = os.Stderr.WriteString("error: unknown option `filter=blob:none`\n")
 					os.Exit(1)
 				}
 				os.Exit(0)

@@ -123,7 +123,9 @@ func CloneRepo(fullName, destPath string) error {
 	// Some environments ship an older git that doesn't support --filter.
 	// Retry without the filter in that case.
 	msgLower := strings.ToLower(string(output))
-	if strings.Contains(msgLower, "--filter") && strings.Contains(msgLower, "unknown option") {
+	filterUnsupported := strings.Contains(msgLower, "unknown option") &&
+		(strings.Contains(msgLower, "--filter") || strings.Contains(msgLower, "filter=blob:none"))
+	if filterUnsupported {
 		if removeErr := os.RemoveAll(destPath); removeErr != nil {
 			return fmt.Errorf("cleanup failed after clone retry: %w", removeErr)
 		}
