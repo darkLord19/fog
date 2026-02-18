@@ -39,6 +39,29 @@
     let selectedRepos = $state<string[]>([]); // repo full names
     let repoSearch = $state("");
 
+    type RepoGroup = { owner: string; repos: DiscoveredRepo[] };
+
+    function groupReposByOwner(repos: DiscoveredRepo[]): RepoGroup[] {
+        const groups: RepoGroup[] = [];
+        const byOwner = new Map<string, RepoGroup>();
+
+        for (const repo of repos) {
+            const owner =
+                repo.owner?.login ||
+                repo.nameWithOwner.split("/")[0] ||
+                "unknown";
+            let group = byOwner.get(owner);
+            if (!group) {
+                group = { owner, repos: [] };
+                byOwner.set(owner, group);
+                groups.push(group);
+            }
+            group.repos.push(repo);
+        }
+
+        return groups;
+    }
+
     let availableTools = $derived(
         appState.settings?.available_tools.map((t) => ({
             value: t,
@@ -170,6 +193,8 @@
             r.nameWithOwner.toLowerCase().includes(repoSearch.toLowerCase()),
         ),
     );
+
+    let filteredGroups = $derived(groupReposByOwner(filteredRepos));
 </script>
 
 <div class="onboarding-overlay" transition:fade>
@@ -380,31 +405,36 @@
                                     {/if}
                                 </div>
                             {:else}
-                                {#each filteredRepos as repo}
-                                    <button
-                                        class="repo-item {selectedRepos.includes(
-                                            repo.nameWithOwner,
-                                        )
-                                            ? 'selected'
-                                            : ''}"
-                                        onclick={() =>
-                                            toggleRepo(repo.nameWithOwner)}
-                                    >
-                                        <div class="repo-info">
-                                            <span class="repo-name"
-                                                >{repo.nameWithOwner}</span
-                                            >
-                                            <span class="repo-path"
-                                                >{repo.url}</span
-                                            >
-                                        </div>
-                                        {#if selectedRepos.includes(repo.nameWithOwner)}
-                                            <Check
-                                                size={18}
-                                                class="check-icon"
-                                            />
-                                        {/if}
-                                    </button>
+                                {#each filteredGroups as group}
+                                    <div class="repo-group-header">
+                                        {group.owner}
+                                    </div>
+                                    {#each group.repos as repo}
+                                        <button
+                                            class="repo-item {selectedRepos.includes(
+                                                repo.nameWithOwner,
+                                            )
+                                                ? 'selected'
+                                                : ''}"
+                                            onclick={() =>
+                                                toggleRepo(repo.nameWithOwner)}
+                                        >
+                                            <div class="repo-info">
+                                                <span class="repo-name"
+                                                    >{repo.nameWithOwner}</span
+                                                >
+                                                <span class="repo-path"
+                                                    >{repo.url}</span
+                                                >
+                                            </div>
+                                            {#if selectedRepos.includes(repo.nameWithOwner)}
+                                                <Check
+                                                    size={18}
+                                                    class="check-icon"
+                                                />
+                                            {/if}
+                                        </button>
+                                    {/each}
                                 {/each}
                             {/if}
                         {/if}
@@ -787,6 +817,17 @@
         border: 1px solid var(--color-border);
         border-radius: 8px;
         background: var(--color-bg);
+    }
+
+    .repo-group-header {
+        padding: 8px 12px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--color-text-muted);
+        background: var(--color-bg-surface);
+        border-bottom: 1px solid var(--color-border);
     }
 
     .loading-state {

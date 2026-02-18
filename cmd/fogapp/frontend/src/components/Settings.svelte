@@ -22,6 +22,32 @@
     let discoveryLoading = $state(false);
     let discovered = $state<DiscoveredRepo[]>([]);
 
+    type DiscoveredRepoGroup = { owner: string; repos: DiscoveredRepo[] };
+
+    function groupDiscoveredRepos(repos: DiscoveredRepo[]): DiscoveredRepoGroup[] {
+        const groups: DiscoveredRepoGroup[] = [];
+        const byOwner = new Map<string, DiscoveredRepoGroup>();
+
+        for (const repo of repos) {
+            const owner =
+                repo.owner?.login ||
+                repo.nameWithOwner.split("/")[0] ||
+                "unknown";
+            let group = byOwner.get(owner);
+            if (!group) {
+                group = { owner, repos: [] };
+                byOwner.set(owner, group);
+                groups.push(group);
+            }
+            group.repos.push(repo);
+        }
+
+        return groups;
+    }
+
+    let discoveredGroups = $derived(groupDiscoveredRepos(discovered));
+    let firstDiscoveredName = $derived(discovered[0]?.nameWithOwner ?? "");
+
     // Local state for settings form
     let defaultTool = $state(appState.settings?.default_tool || "");
     let defaultModels = $state<Record<string, string>>({
@@ -356,31 +382,48 @@
                     {#if discovered.length > 0}
                         <div class="discovery-results" transition:slide>
                             <div class="res-header">Available to Import</div>
-                            <div class="res-list">
-                                {#each discovered as d, i}
-                                    <div class="res-item">
-                                        <span class="res-name"
-                                            >{d.nameWithOwner}</span
-                                        >
-                                        <button
-                                            id={i === 0
-                                                ? "settings-import"
-                                                : undefined}
-                                            class="btn-import"
-                                            disabled={importingRepos.includes(
-                                                d.nameWithOwner,
-                                            )}
-                                            onclick={() =>
-                                                handleImport(d.nameWithOwner)}
-                                        >
-                                            {#if importingRepos.includes(d.nameWithOwner)}
-                                                <div class="mini-loader"></div>
-                                                <span>Importing...</span>
-                                            {:else}
-                                                <Plus size={12} />
-                                                <span>Import</span>
-                                            {/if}
-                                        </button>
+                            <div class="res-groups">
+                                {#each discoveredGroups as group}
+                                    <div class="res-group">
+                                        <div class="res-group-title">
+                                            <Layers size={12} />
+                                            <span>{group.owner}</span>
+                                        </div>
+                                        <div class="res-list">
+                                            {#each group.repos as d}
+                                                <div class="res-item">
+                                                    <span class="res-name"
+                                                        >{d.nameWithOwner}</span
+                                                    >
+                                                    <button
+                                                        id={d.nameWithOwner ===
+                                                        firstDiscoveredName
+                                                            ? "settings-import"
+                                                            : undefined}
+                                                        class="btn-import"
+                                                        disabled={importingRepos.includes(
+                                                            d.nameWithOwner,
+                                                        )}
+                                                        onclick={() =>
+                                                            handleImport(
+                                                                d.nameWithOwner,
+                                                            )}
+                                                    >
+                                                        {#if importingRepos.includes(d.nameWithOwner)}
+                                                            <div
+                                                                class="mini-loader"
+                                                            ></div>
+                                                            <span
+                                                                >Importing...</span
+                                                            >
+                                                        {:else}
+                                                            <Plus size={12} />
+                                                            <span>Import</span>
+                                                        {/if}
+                                                    </button>
+                                                </div>
+                                            {/each}
+                                        </div>
                                     </div>
                                 {/each}
                             </div>
@@ -583,6 +626,23 @@
         letter-spacing: 0.05em;
         color: var(--color-text-muted);
         margin-bottom: 12px;
+    }
+
+    .res-groups {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .res-group-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--color-text-secondary);
+        margin-bottom: 8px;
+        padding-left: 2px;
     }
 
     .res-list {
