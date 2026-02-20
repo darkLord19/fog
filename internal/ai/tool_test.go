@@ -1,5 +1,7 @@
 package ai
 
+import "slices"
+
 import "testing"
 
 func TestGetToolGemini(t *testing.T) {
@@ -24,13 +26,7 @@ func TestGetToolClaudeAlias(t *testing.T) {
 
 func TestAvailableToolNamesIncludesGemini(t *testing.T) {
 	names := AvailableToolNames()
-	found := false
-	for _, name := range names {
-		if name == "gemini" {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(names, "gemini")
 	if !found {
 		t.Fatalf("expected gemini in available tool names: %v", names)
 	}

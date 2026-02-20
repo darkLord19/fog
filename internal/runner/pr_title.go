@@ -16,7 +16,7 @@ func resolvePRTitle(customTitle, prompt string) string {
 }
 
 func firstNonEmptyLine(text string) string {
-	for _, line := range strings.Split(text, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		if trimmed := strings.TrimSpace(line); trimmed != "" {
 			return trimmed
 		}

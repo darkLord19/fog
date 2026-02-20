@@ -36,7 +36,7 @@ type Repo struct {
 	BarePath         string    `json:"bare_path,omitempty"`
 	BaseWorktreePath string    `json:"base_worktree_path"`
 	DefaultBranch    string    `json:"default_branch,omitempty"`
-	CreatedAt        time.Time `json:"created_at,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 // NewStore opens or creates the Fog SQLite database in fogHome.

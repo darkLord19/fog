@@ -80,7 +80,7 @@ func TestHandleOAuthCallbackStoresInstallation(t *testing.T) {
 		if r.Form.Get("client_id") != "cid" || r.Form.Get("client_secret") != "csecret" {
 			t.Fatalf("missing oauth client credentials")
 		}
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"ok":           true,
 			"access_token": botToken,
 			"bot_user_id":  botUser,
@@ -194,7 +194,7 @@ func TestHandleEventsAppMentionUnpairedPostsEphemeral(t *testing.T) {
 			t.Fatalf("decode payload failed: %v", err)
 		}
 		ephemeralCh <- payload
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 	})
 	slackServer := newHTTPTestServerOrSkip(t, slackMux)
 	defer slackServer.Close()
@@ -262,7 +262,7 @@ func TestHandleEventsAppMentionPairedQueuesJobAndDeviceClaimsIt(t *testing.T) {
 			t.Fatalf("decode payload failed: %v", err)
 		}
 		msgCh <- payload
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 	})
 	slackServer := newHTTPTestServerOrSkip(t, slackMux)
 	defer slackServer.Close()
@@ -365,7 +365,7 @@ func TestDeviceJobCompleteMapsThreadSessionAndPostsCompletion(t *testing.T) {
 			t.Fatalf("decode payload failed: %v", err)
 		}
 		msgCh <- payload
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 	})
 	slackServer := newHTTPTestServerOrSkip(t, slackMux)
 	defer slackServer.Close()
@@ -383,7 +383,7 @@ func TestDeviceJobCompleteMapsThreadSessionAndPostsCompletion(t *testing.T) {
 	mux := http.NewServeMux()
 	server.RegisterRoutes(mux)
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"success":    true,
 		"session_id": "session-1",
 		"run_id":     "run-1",

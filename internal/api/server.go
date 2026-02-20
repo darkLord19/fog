@@ -151,7 +151,7 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"task_id": t.ID,
 			"status":  "accepted",
 		})
@@ -475,7 +475,7 @@ func (s *Server) handleGhStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status := map[string]interface{}{
+	status := map[string]any{
 		"installed":     ghcli.IsGhAvailable(),
 		"authenticated": false,
 		"os":            runtimeOS(),

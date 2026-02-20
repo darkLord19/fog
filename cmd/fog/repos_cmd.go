@@ -271,7 +271,7 @@ func selectRepos(repos []ghcli.Repo, selectFlag string) ([]ghcli.Repo, error) {
 	}
 
 	want := make(map[string]struct{})
-	for _, name := range strings.Split(selectFlag, ",") {
+	for name := range strings.SplitSeq(selectFlag, ",") {
 		name = strings.TrimSpace(name)
 		if name != "" {
 			want[name] = struct{}{}

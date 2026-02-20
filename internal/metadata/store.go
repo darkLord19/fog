@@ -33,7 +33,7 @@ type WorktreeMetadata struct {
 	Notes        string    `json:"notes,omitempty"`
 	SetupRan     bool      `json:"setup_ran"`
 	SetupOutput  string    `json:"setup_output,omitempty"`
-	LastValidate time.Time `json:"last_validate,omitempty"`
+	LastValidate time.Time `json:"last_validate"`
 	ValidatePass bool      `json:"validate_pass"`
 }
 

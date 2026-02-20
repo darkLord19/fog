@@ -156,7 +156,7 @@ func (h *Handler) buildTask(parsed *parsedCommand) (*task.Task, string, error) {
 	}
 
 	if parsed.Model != "" {
-		t.Metadata = map[string]interface{}{"model": parsed.Model}
+		t.Metadata = map[string]any{"model": parsed.Model}
 	}
 
 	return t, repo.BaseWorktreePath, nil
@@ -164,10 +164,10 @@ func (h *Handler) buildTask(parsed *parsedCommand) (*task.Task, string, error) {
 
 // sendAckResponse sends immediate acknowledgment.
 func (h *Handler) sendAckResponse(w http.ResponseWriter, t *task.Task) {
-	response := map[string]interface{}{
+	response := map[string]any{
 		"response_type": "in_channel",
 		"text":          fmt.Sprintf("🚀 Starting task on branch `%s`", t.Branch),
-		"attachments": []map[string]interface{}{
+		"attachments": []map[string]any{
 			{
 				"text":  t.Prompt,
 				"color": "good",
@@ -181,7 +181,7 @@ func (h *Handler) sendAckResponse(w http.ResponseWriter, t *task.Task) {
 
 // sendErrorResponse sends an error response.
 func (h *Handler) sendErrorResponse(w http.ResponseWriter, errorMsg string) {
-	response := map[string]interface{}{
+	response := map[string]any{
 		"response_type": "ephemeral",
 		"text":          "❌ Error: " + errorMsg,
 	}
@@ -192,13 +192,13 @@ func (h *Handler) sendErrorResponse(w http.ResponseWriter, errorMsg string) {
 
 // sendCompletionNotification sends completion notification to Slack.
 func (h *Handler) sendCompletionNotification(responseURL string, t *task.Task, err error) {
-	var message map[string]interface{}
+	var message map[string]any
 
 	if err != nil {
-		message = map[string]interface{}{
+		message = map[string]any{
 			"response_type": "in_channel",
 			"text":          fmt.Sprintf("❌ Task failed: %s", t.Branch),
-			"attachments": []map[string]interface{}{
+			"attachments": []map[string]any{
 				{
 					"text":  err.Error(),
 					"color": "danger",
@@ -208,9 +208,9 @@ func (h *Handler) sendCompletionNotification(responseURL string, t *task.Task, e
 	} else {
 		duration := t.Duration()
 
-		attachment := map[string]interface{}{
+		attachment := map[string]any{
 			"color": "good",
-			"fields": []map[string]interface{}{
+			"fields": []map[string]any{
 				{
 					"title": "Branch",
 					"value": t.Branch,
@@ -225,14 +225,14 @@ func (h *Handler) sendCompletionNotification(responseURL string, t *task.Task, e
 		}
 
 		if prURL, ok := t.Metadata["pr_url"].(string); ok {
-			attachment["fields"] = append(attachment["fields"].([]map[string]interface{}), map[string]interface{}{
+			attachment["fields"] = append(attachment["fields"].([]map[string]any), map[string]any{
 				"title": "Pull Request",
 				"value": prURL,
 				"short": false,
 			})
 		}
 
-		actions := []map[string]interface{}{
+		actions := []map[string]any{
 			{
 				"type":  "button",
 				"text":  "Open Branch",
@@ -242,7 +242,7 @@ func (h *Handler) sendCompletionNotification(responseURL string, t *task.Task, e
 		}
 
 		if _, ok := t.Metadata["pr_url"]; !ok {
-			actions = append(actions, map[string]interface{}{
+			actions = append(actions, map[string]any{
 				"type":  "button",
 				"text":  "Create PR",
 				"name":  "create_pr",
@@ -253,10 +253,10 @@ func (h *Handler) sendCompletionNotification(responseURL string, t *task.Task, e
 
 		attachment["actions"] = actions
 
-		message = map[string]interface{}{
+		message = map[string]any{
 			"response_type": "in_channel",
 			"text":          fmt.Sprintf("✅ Task completed: %s", t.Branch),
-			"attachments":   []map[string]interface{}{attachment},
+			"attachments":   []map[string]any{attachment},
 		}
 	}
 

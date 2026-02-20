@@ -26,7 +26,7 @@ func TestSocketModeRunOnceAppMentionParseErrorPostsThreadMessage(t *testing.T) {
 		if got := r.Header.Get("Authorization"); got != "Bearer xapp-test" {
 			t.Errorf("unexpected app token header: %q", got)
 		}
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"ok":  true,
 			"url": wsURL,
 		})
@@ -40,11 +40,11 @@ func TestSocketModeRunOnceAppMentionParseErrorPostsThreadMessage(t *testing.T) {
 		}
 		defer conn.Close()
 
-		envelope := map[string]interface{}{
+		envelope := map[string]any{
 			"envelope_id": "env-1",
 			"type":        "events_api",
-			"payload": map[string]interface{}{
-				"event": map[string]interface{}{
+			"payload": map[string]any{
+				"event": map[string]any{
 					"type":    "app_mention",
 					"text":    "<@U123> missing options block",
 					"channel": "C123",
@@ -78,7 +78,7 @@ func TestSocketModeRunOnceAppMentionParseErrorPostsThreadMessage(t *testing.T) {
 		}
 		chatCh <- payload
 
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"ok": true,
 			"ts": "111.223",
 		})
@@ -128,13 +128,13 @@ func TestSocketModeRunOnceSlashCommandParseErrorPostsResponseURL(t *testing.T) {
 
 	upgrader := websocket.Upgrader{}
 	ackCh := make(chan map[string]string, 1)
-	responseCh := make(chan map[string]interface{}, 1)
+	responseCh := make(chan map[string]any, 1)
 
 	var wsURL string
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/open", func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"ok":  true,
 			"url": wsURL,
 		})
@@ -148,10 +148,10 @@ func TestSocketModeRunOnceSlashCommandParseErrorPostsResponseURL(t *testing.T) {
 		}
 		defer conn.Close()
 
-		envelope := map[string]interface{}{
+		envelope := map[string]any{
 			"envelope_id": "env-2",
 			"type":        "slash_commands",
-			"payload": map[string]interface{}{
+			"payload": map[string]any{
 				"channel_id":   "C123",
 				"text":         "invalid text",
 				"response_url": serverURLForTest(r) + "/response",
@@ -172,7 +172,7 @@ func TestSocketModeRunOnceSlashCommandParseErrorPostsResponseURL(t *testing.T) {
 	})
 
 	mux.HandleFunc("/response", func(w http.ResponseWriter, r *http.Request) {
-		var payload map[string]interface{}
+		var payload map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Errorf("decode response_url payload failed: %v", err)
 			http.Error(w, "bad payload", http.StatusBadRequest)

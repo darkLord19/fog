@@ -284,7 +284,7 @@ func runAdd(name, branch string) error {
 	}
 
 	if flagAddJSON {
-		result := map[string]interface{}{
+		result := map[string]any{
 			"name":   name,
 			"branch": branch,
 			"path":   wtPath,

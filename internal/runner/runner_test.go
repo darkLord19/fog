@@ -133,7 +133,7 @@ func gitCmdRepo(t *testing.T, repo string) string {
 }
 
 func gitBranchExists(branchListOutput string, branch string) bool {
-	for _, line := range strings.Split(branchListOutput, "\n") {
+	for line := range strings.SplitSeq(branchListOutput, "\n") {
 		if strings.TrimSpace(line) == branch {
 			return true
 		}

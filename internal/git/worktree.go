@@ -52,7 +52,7 @@ func (g *Git) PruneWorktrees(dryRun bool) ([]string, error) {
 	}
 
 	var pruned []string
-	for _, line := range strings.Split(output, "\n") {
+	for line := range strings.SplitSeq(output, "\n") {
 		if line != "" {
 			pruned = append(pruned, line)
 		}
@@ -66,7 +66,7 @@ func parseWorktreeList(output string) []Worktree {
 	var worktrees []Worktree
 	var current *Worktree
 
-	for _, line := range strings.Split(output, "\n") {
+	for line := range strings.SplitSeq(output, "\n") {
 		if line == "" {
 			if current != nil {
 				worktrees = append(worktrees, *current)

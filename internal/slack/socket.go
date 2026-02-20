@@ -280,7 +280,7 @@ func (s *SocketMode) handleThreadFollowUp(channelID, rootTS, rawPrompt string) {
 	t.Options.Async = true
 	attachSlackMetadata(t, ctx.Repo, channelID, rootTS)
 	if t.Metadata == nil {
-		t.Metadata = map[string]interface{}{}
+		t.Metadata = map[string]any{}
 	}
 	t.Metadata["parent_task_id"] = ctx.TaskID
 	t.Metadata["parent_branch"] = ctx.Branch
@@ -300,7 +300,7 @@ func (s *SocketMode) runTaskInThread(channelID, rootTS, repoPath string, t *task
 }
 
 func (s *SocketMode) sendWebhookAck(responseURL string, t *task.Task) {
-	response := map[string]interface{}{
+	response := map[string]any{
 		"response_type": "in_channel",
 		"text":          fmt.Sprintf("🚀 Starting task on branch `%s`", t.Branch),
 	}
@@ -308,14 +308,14 @@ func (s *SocketMode) sendWebhookAck(responseURL string, t *task.Task) {
 }
 
 func (s *SocketMode) sendWebhookError(responseURL, errorMsg string) {
-	response := map[string]interface{}{
+	response := map[string]any{
 		"response_type": "ephemeral",
 		"text":          "❌ Error: " + errorMsg,
 	}
 	_ = postWebhookJSON(s.httpClient, responseURL, response)
 }
 
-func postWebhookJSON(client *http.Client, responseURL string, payload map[string]interface{}) error {
+func postWebhookJSON(client *http.Client, responseURL string, payload map[string]any) error {
 	if strings.TrimSpace(responseURL) == "" {
 		return nil
 	}
@@ -401,7 +401,7 @@ func normalizeFollowUpPrompt(input string) (string, error) {
 
 func attachSlackMetadata(t *task.Task, repoName, channelID, rootTS string) {
 	if t.Metadata == nil {
-		t.Metadata = map[string]interface{}{}
+		t.Metadata = map[string]any{}
 	}
 	t.Metadata["repo"] = repoName
 	if strings.TrimSpace(channelID) != "" {

@@ -774,10 +774,7 @@ func (s *Server) resolveBranchName(repoPath, requested, prompt string) (string, 
 	g := git.New(repoPath)
 
 	truncateWithSuffix := func(base, suffix string) string {
-		maxBaseLen := 255 - len(suffix)
-		if maxBaseLen < 1 {
-			maxBaseLen = 1
-		}
+		maxBaseLen := max(255-len(suffix), 1)
 		if len(base) > maxBaseLen {
 			base = strings.Trim(base[:maxBaseLen], "/.-")
 		}

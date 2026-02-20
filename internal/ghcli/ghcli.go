@@ -156,7 +156,7 @@ func listOrgs(gh string, limit int) ([]string, error) {
 
 	seen := make(map[string]struct{})
 	orgs := make([]string, 0)
-	for _, line := range strings.Split(string(output), "\n") {
+	for line := range strings.SplitSeq(string(output), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue

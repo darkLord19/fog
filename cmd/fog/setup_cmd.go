@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/darkLord19/foglet/internal/ai"
@@ -95,10 +96,8 @@ func chooseDefaultTool(available []string, requested string) (string, error) {
 
 	requested = strings.TrimSpace(requested)
 	if requested != "" {
-		for _, tool := range available {
-			if tool == requested {
-				return requested, nil
-			}
+		if slices.Contains(available, requested) {
+			return requested, nil
 		}
 		return "", fmt.Errorf("requested default tool %q is not available, available: %s", requested, strings.Join(available, ", "))
 	}

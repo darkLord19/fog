@@ -43,7 +43,7 @@ func TestImportSelectedRepos_Parallel(t *testing.T) {
 
 	// Create inputs
 	repos := make([]ghcli.Repo, 10)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		name := fmt.Sprintf("acme/repo-%d", i)
 		repos[i] = ghcli.Repo{
 			Name:          fmt.Sprintf("repo-%d", i),

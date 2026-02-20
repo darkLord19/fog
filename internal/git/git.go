@@ -3,6 +3,7 @@ package git
 import (
 	"fmt"
 	"os/exec"
+	"slices"
 	"strings"
 )
 
@@ -82,7 +83,7 @@ func (g *Git) ListBranches() ([]string, error) {
 		return nil, err
 	}
 	var branches []string
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		if trimmed := strings.TrimSpace(line); trimmed != "" {
 			branches = append(branches, trimmed)
 		}
@@ -110,15 +111,11 @@ func (g *Git) GetDefaultBranch() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	for _, b := range branches {
-		if b == "main" {
-			return "main", nil
-		}
+	if slices.Contains(branches, "main") {
+		return "main", nil
 	}
-	for _, b := range branches {
-		if b == "master" {
-			return "master", nil
-		}
+	if slices.Contains(branches, "master") {
+		return "master", nil
 	}
 
 	if len(branches) > 0 {

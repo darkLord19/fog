@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -136,16 +137,16 @@ type mockFogAPI struct {
 
 	counters e2eStats
 
-	settings map[string]interface{}
-	repos    []map[string]interface{}
-	sessions []map[string]interface{}
-	runs     map[string][]map[string]interface{}
-	events   map[string][]map[string]interface{}
+	settings map[string]any
+	repos    []map[string]any
+	sessions []map[string]any
+	runs     map[string][]map[string]any
+	events   map[string][]map[string]any
 }
 
 func newMockFogAPI() *mockFogAPI {
 	now := time.Now().UTC()
-	sessions := []map[string]interface{}{
+	sessions := []map[string]any{
 		{
 			"id":            "session-1",
 			"repo_name":     "owner/repo",
@@ -159,7 +160,7 @@ func newMockFogAPI() *mockFogAPI {
 			"updated_at":    now.Format(time.RFC3339),
 		},
 	}
-	runs := map[string][]map[string]interface{}{
+	runs := map[string][]map[string]any{
 		"session-1": {
 			{
 				"id":            "run-1",
@@ -172,7 +173,7 @@ func newMockFogAPI() *mockFogAPI {
 			},
 		},
 	}
-	events := map[string][]map[string]interface{}{
+	events := map[string][]map[string]any{
 		"run-1": {
 			{"id": 1, "run_id": "run-1", "ts": now.Add(-3 * time.Minute).Format(time.RFC3339), "type": "ai_start", "message": "Running AI tool"},
 			{"id": 2, "run_id": "run-1", "ts": now.Add(-2 * time.Minute).Format(time.RFC3339), "type": "complete", "message": "Run completed"},
@@ -180,7 +181,7 @@ func newMockFogAPI() *mockFogAPI {
 	}
 
 	return &mockFogAPI{
-		settings: map[string]interface{}{
+		settings: map[string]any{
 			"default_tool":        "claude",
 			"default_model":       "",
 			"default_models":      map[string]string{},
@@ -192,7 +193,7 @@ func newMockFogAPI() *mockFogAPI {
 			"onboarding_required": false,
 			"available_tools":     []string{"claude", "cursor"},
 		},
-		repos: []map[string]interface{}{
+		repos: []map[string]any{
 			{
 				"name":               "owner/repo",
 				"url":                "https://github.com/owner/repo.git",
@@ -216,7 +217,7 @@ func (m *mockFogAPI) stats() e2eStats {
 	return m.statsSnapshot()
 }
 
-func firstRunID(runs []map[string]interface{}) string {
+func firstRunID(runs []map[string]any) string {
 	if len(runs) == 0 {
 		return ""
 	}
@@ -226,20 +227,16 @@ func firstRunID(runs []map[string]interface{}) string {
 	return ""
 }
 
-func (m *mockFogAPI) sessionSummariesLocked() []map[string]interface{} {
-	out := make([]map[string]interface{}, 0, len(m.sessions))
+func (m *mockFogAPI) sessionSummariesLocked() []map[string]any {
+	out := make([]map[string]any, 0, len(m.sessions))
 	for _, session := range m.sessions {
-		copySession := map[string]interface{}{}
-		for k, v := range session {
-			copySession[k] = v
-		}
+		copySession := map[string]any{}
+		maps.Copy(copySession, session)
 		sid, _ := session["id"].(string)
 		runs := m.runs[sid]
 		if len(runs) > 0 {
-			latest := map[string]interface{}{}
-			for k, v := range runs[0] {
-				latest[k] = v
-			}
+			latest := map[string]any{}
+			maps.Copy(latest, runs[0])
 			copySession["latest_run"] = latest
 		}
 		out = append(out, copySession)
@@ -251,7 +248,7 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	writeJSON := func(code int, payload interface{}) {
+	writeJSON := func(code int, payload any) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(code)
 		_ = json.NewEncoder(w).Encode(payload)
@@ -263,7 +260,7 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case r.Method == http.MethodPut && r.URL.Path == "/api/settings":
 		m.counters.settingsPutCount++
-		var in map[string]interface{}
+		var in map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&in)
 		if v, ok := in["default_tool"].(string); ok && strings.TrimSpace(v) != "" {
 			m.settings["default_tool"] = v
@@ -274,7 +271,7 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if v, ok := in["default_model"].(string); ok {
 			m.settings["default_model"] = v
 		}
-		if v, ok := in["default_models"].(map[string]interface{}); ok {
+		if v, ok := in["default_models"].(map[string]any); ok {
 			m.settings["default_models"] = v
 		}
 		if v, ok := in["default_autopr"].(bool); ok {
@@ -303,24 +300,24 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 		}
-		writeJSON(http.StatusOK, []map[string]interface{}{
+		writeJSON(http.StatusOK, []map[string]any{
 			{"name": defaultBranch, "is_default": true},
 			{"name": "develop", "is_default": false},
 		})
 		return
 	case r.Method == http.MethodPost && r.URL.Path == "/api/repos/discover":
 		m.counters.discoverCount++
-		writeJSON(http.StatusOK, []map[string]interface{}{
+		writeJSON(http.StatusOK, []map[string]any{
 			{
 				"id":            "repo-1",
 				"name":          "new-repo",
 				"nameWithOwner": "owner/new-repo",
 				"url":           "https://github.com/owner/new-repo",
 				"isPrivate":     false,
-				"defaultBranchRef": map[string]interface{}{
+				"defaultBranchRef": map[string]any{
 					"name": "main",
 				},
-				"owner": map[string]interface{}{
+				"owner": map[string]any{
 					"login": "owner",
 				},
 			},
@@ -329,7 +326,7 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodPost && r.URL.Path == "/api/repos/import":
 		m.counters.importCount++
 		// Simulate repo appearing in managed list after import.
-		m.repos = append([]map[string]interface{}{
+		m.repos = append([]map[string]any{
 			{
 				"name":               "owner/new-repo",
 				"url":                "https://github.com/owner/new-repo.git",
@@ -337,7 +334,7 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				"base_worktree_path": "/tmp/owner-new-repo/base",
 			},
 		}, m.repos...)
-		writeJSON(http.StatusOK, map[string]interface{}{
+		writeJSON(http.StatusOK, map[string]any{
 			"imported": []string{"owner/new-repo"},
 		})
 		return
@@ -346,7 +343,7 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case r.Method == http.MethodPost && r.URL.Path == "/api/sessions":
 		m.counters.createSessionCount++
-		var in map[string]interface{}
+		var in map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&in)
 		prompt := "New session"
 		if v, ok := in["prompt"].(string); ok && strings.TrimSpace(v) != "" {
@@ -355,7 +352,7 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		id := "session-" + strconv.Itoa(len(m.sessions)+1)
 		runID := "run-" + strconv.Itoa(len(m.events)+1)
 		now := time.Now().UTC().Format(time.RFC3339)
-		session := map[string]interface{}{
+		session := map[string]any{
 			"id":            id,
 			"repo_name":     "owner/repo",
 			"branch":        "fog/new-session",
@@ -367,8 +364,8 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"pr_url":        "",
 			"updated_at":    now,
 		}
-		m.sessions = append([]map[string]interface{}{session}, m.sessions...)
-		m.runs[id] = []map[string]interface{}{
+		m.sessions = append([]map[string]any{session}, m.sessions...)
+		m.runs[id] = []map[string]any{
 			{
 				"id":            runID,
 				"session_id":    id,
@@ -379,10 +376,10 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				"updated_at":    now,
 			},
 		}
-		m.events[runID] = []map[string]interface{}{
+		m.events[runID] = []map[string]any{
 			{"id": 1, "run_id": runID, "ts": now, "type": "setup", "message": "queued"},
 		}
-		writeJSON(http.StatusAccepted, map[string]interface{}{
+		writeJSON(http.StatusAccepted, map[string]any{
 			"session_id": id,
 			"run_id":     runID,
 			"status":     "accepted",
@@ -390,19 +387,19 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/api/sessions/") {
-		path := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
+	if after, ok := strings.CutPrefix(r.URL.Path, "/api/sessions/"); ok {
+		path := after
 		parts := strings.Split(strings.Trim(path, "/"), "/")
 		if len(parts) == 1 && r.Method == http.MethodGet {
 			sid := parts[0]
-			session := map[string]interface{}{}
+			session := map[string]any{}
 			for _, s := range m.sessions {
 				if s["id"] == sid {
 					session = s
 					break
 				}
 			}
-			writeJSON(http.StatusOK, map[string]interface{}{
+			writeJSON(http.StatusOK, map[string]any{
 				"session": session,
 				"runs":    m.runs[sid],
 			})
@@ -411,7 +408,7 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if len(parts) == 2 && parts[1] == "runs" && r.Method == http.MethodPost {
 			m.counters.followupCount++
 			sid := parts[0]
-			var in map[string]interface{}
+			var in map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&in)
 			prompt := "Follow-up"
 			if v, ok := in["prompt"].(string); ok && strings.TrimSpace(v) != "" {
@@ -419,7 +416,7 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			runID := "run-" + strconv.Itoa(len(m.events)+1)
 			now := time.Now().UTC().Format(time.RFC3339)
-			m.runs[sid] = append([]map[string]interface{}{
+			m.runs[sid] = append([]map[string]any{
 				{
 					"id":            runID,
 					"session_id":    sid,
@@ -430,7 +427,7 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					"updated_at":    now,
 				},
 			}, m.runs[sid]...)
-			m.events[runID] = []map[string]interface{}{
+			m.events[runID] = []map[string]any{
 				{"id": 1, "run_id": runID, "ts": now, "type": "ai_start", "message": "queued"},
 			}
 			for _, s := range m.sessions {
@@ -442,7 +439,7 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					break
 				}
 			}
-			writeJSON(http.StatusAccepted, map[string]interface{}{
+			writeJSON(http.StatusAccepted, map[string]any{
 				"run_id":  runID,
 				"status":  "accepted",
 				"session": sid,
@@ -451,7 +448,7 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if len(parts) == 2 && parts[1] == "fork" && r.Method == http.MethodPost {
 			m.counters.forkCount++
-			var in map[string]interface{}
+			var in map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&in)
 			prompt := "Forked session"
 			if v, ok := in["prompt"].(string); ok && strings.TrimSpace(v) != "" {
@@ -461,7 +458,7 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			id := "session-" + strconv.Itoa(len(m.sessions)+1)
 			runID := "run-" + strconv.Itoa(len(m.events)+1)
 			now := time.Now().UTC().Format(time.RFC3339)
-			session := map[string]interface{}{
+			session := map[string]any{
 				"id":            id,
 				"repo_name":     "owner/repo",
 				"branch":        "fog/forked-session",
@@ -473,8 +470,8 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				"pr_url":        "",
 				"updated_at":    now,
 			}
-			m.sessions = append([]map[string]interface{}{session}, m.sessions...)
-			m.runs[id] = []map[string]interface{}{
+			m.sessions = append([]map[string]any{session}, m.sessions...)
+			m.runs[id] = []map[string]any{
 				{
 					"id":            runID,
 					"session_id":    id,
@@ -485,10 +482,10 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					"updated_at":    now,
 				},
 			}
-			m.events[runID] = []map[string]interface{}{
+			m.events[runID] = []map[string]any{
 				{"id": 1, "run_id": runID, "ts": now, "type": "fork", "message": "fork started"},
 			}
-			writeJSON(http.StatusAccepted, map[string]interface{}{
+			writeJSON(http.StatusAccepted, map[string]any{
 				"session_id": id,
 				"run_id":     runID,
 				"status":     "accepted",
@@ -507,7 +504,7 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					break
 				}
 			}
-			m.events[latest] = append(m.events[latest], map[string]interface{}{
+			m.events[latest] = append(m.events[latest], map[string]any{
 				"id": len(m.events[latest]) + 1, "run_id": latest, "ts": now, "type": "cancelled", "message": "Run canceled",
 			})
 			for _, s := range m.sessions {
@@ -518,7 +515,7 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					break
 				}
 			}
-			writeJSON(http.StatusAccepted, map[string]interface{}{
+			writeJSON(http.StatusAccepted, map[string]any{
 				"status": "cancel_requested",
 				"run_id": latest,
 			})
@@ -527,14 +524,14 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if len(parts) == 2 && parts[1] == "open" && r.Method == http.MethodPost {
 			m.counters.openCount++
 			sid := parts[0]
-			session := map[string]interface{}{}
+			session := map[string]any{}
 			for _, s := range m.sessions {
 				if s["id"] == sid {
 					session = s
 					break
 				}
 			}
-			writeJSON(http.StatusOK, map[string]interface{}{
+			writeJSON(http.StatusOK, map[string]any{
 				"status":        "opened",
 				"editor":        "cursor",
 				"worktree_path": session["worktree_path"],
@@ -542,7 +539,7 @@ func (m *mockFogAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(parts) == 2 && parts[1] == "diff" && r.Method == http.MethodGet {
-			writeJSON(http.StatusOK, map[string]interface{}{
+			writeJSON(http.StatusOK, map[string]any{
 				"base_branch":   "main",
 				"branch":        "fog/session-one",
 				"worktree_path": "/tmp/owner-repo/worktrees",

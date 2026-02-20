@@ -322,7 +322,7 @@ func (s *Store) CreatePairingRequest(teamID, slackUserID, channelID, rootTS stri
 	createdAt := time.Now().UTC()
 	expiresAt := createdAt.Add(ttl)
 	var code string
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		token, err := randomToken(4)
 		if err != nil {
 			return PairingRequest{}, err
@@ -784,7 +784,7 @@ func (s *Store) ClaimNextJob(deviceID string) (Job, bool, error) {
 	if deviceID == "" {
 		return Job{}, false, errors.New("device_id is required")
 	}
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		tx, err := s.db.Begin()
 		if err != nil {
 			return Job{}, false, fmt.Errorf("begin tx: %w", err)
@@ -929,7 +929,7 @@ func (s *Store) GetJob(jobID string) (Job, bool, error) {
 }
 
 type queryRower interface {
-	QueryRow(query string, args ...interface{}) *sql.Row
+	QueryRow(query string, args ...any) *sql.Row
 }
 
 func getJobTx(q queryRower, jobID string) (Job, bool, error) {

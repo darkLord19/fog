@@ -44,7 +44,7 @@ func TestFindLatestThreadContextFromTasks(t *testing.T) {
 			Options: task.Options{
 				SlackChannel: "C1",
 			},
-			Metadata: map[string]interface{}{
+			Metadata: map[string]any{
 				"repo":          "acme-api",
 				"slack_root_ts": "123.456",
 			},
@@ -57,7 +57,7 @@ func TestFindLatestThreadContextFromTasks(t *testing.T) {
 			Options: task.Options{
 				SlackChannel: "C1",
 			},
-			Metadata: map[string]interface{}{
+			Metadata: map[string]any{
 				"repo":          "acme-api",
 				"slack_root_ts": "123.456",
 			},
@@ -83,7 +83,7 @@ func TestCompletionText(t *testing.T) {
 		Branch:      "fog/auth",
 		CreatedAt:   start,
 		CompletedAt: &end,
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"pr_url": "https://github.com/acme/repo/pull/1",
 		},
 	}

@@ -180,7 +180,7 @@ func (r *Runner) runAI(t *task.Task) error {
 
 	// Store AI output in metadata
 	if t.Metadata == nil {
-		t.Metadata = make(map[string]interface{})
+		t.Metadata = make(map[string]any)
 	}
 	t.Metadata["ai_output"] = result.Output
 
@@ -263,7 +263,7 @@ func (r *Runner) createPR(t *task.Task) error {
 
 	// Store PR URL in metadata
 	if t.Metadata == nil {
-		t.Metadata = make(map[string]interface{})
+		t.Metadata = make(map[string]any)
 	}
 	t.Metadata["pr_url"] = prURL
 

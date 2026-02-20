@@ -924,8 +924,8 @@ func stagedDiffSummary(ctx context.Context, workdir string) (string, error) {
 
 func normalizeCommitMessage(raw string) string {
 	msg := strings.TrimSpace(raw)
-	if strings.HasPrefix(msg, "```") {
-		msg = strings.TrimPrefix(msg, "```")
+	if after, ok := strings.CutPrefix(msg, "```"); ok {
+		msg = after
 		msg = strings.TrimSpace(msg)
 		if idx := strings.LastIndex(msg, "```"); idx >= 0 {
 			msg = strings.TrimSpace(msg[:idx])
@@ -1174,10 +1174,10 @@ func extractCommitMessage(output string) string {
 	}
 
 	content := output[startIdx+len(startTag):]
-	endIdx := strings.Index(content, endTag)
-	if endIdx == -1 {
+	before, _, ok := strings.Cut(content, endTag)
+	if !ok {
 		return strings.TrimSpace(content)
 	}
 
-	return strings.TrimSpace(content[:endIdx])
+	return strings.TrimSpace(before)
 }

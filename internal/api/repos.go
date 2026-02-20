@@ -170,7 +170,6 @@ func importSelectedRepos(fogHome string, store *state.Store, repos []ghcli.Repo)
 	g.SetLimit(5) // Limit to 5 concurrent clones
 
 	for i, repo := range repos {
-		i, repo := i, repo // capture loop variables
 		g.Go(func() error {
 			// Check for context cancellation
 			if ctx.Err() != nil {
